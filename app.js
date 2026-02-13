@@ -7430,17 +7430,17 @@ try {
                                 { content: totalGrand.toLocaleString('en-IN', { minimumFractionDigits: 2 }), styles: { halign: 'right', fontStyle: 'bold' } }
                             ],
                             ...(doc.bank_charges > 0 ? [[
-                                { content: 'Bank Charges', colSpan: colIdx, styles: { halign: 'right', fontStyle: 'bold' } },
+                                { content: 'Bank Charges', colSpan: colIdx - 1, styles: { halign: 'right', fontStyle: 'bold' } },
                                 { content: doc.bank_charges.toLocaleString('en-IN', { minimumFractionDigits: 2 }), styles: { halign: 'right', fontStyle: 'bold' } }
                             ]] : []),
                             ...(doc.metadata?.round_off ? [[
-                                { content: 'Round Off', colSpan: colIdx, styles: { halign: 'right', fontStyle: 'bold' } },
+                                { content: 'Round Off', colSpan: colIdx - 1, styles: { halign: 'right', fontStyle: 'bold' } },
                                 { content: (doc.total_amount - (totalGrand + (doc.bank_charges || 0))).toLocaleString('en-IN', { minimumFractionDigits: 2 }), styles: { halign: 'right', fontStyle: 'bold' } }
                             ]] : []),
-                            [[
-                                { content: 'Grand Total', colSpan: colIdx, styles: { halign: 'right', fontStyle: 'bold' } },
+                            [
+                                { content: 'Grand Total', colSpan: colIdx - 1, styles: { halign: 'right', fontStyle: 'bold' } },
                                 { content: doc.total_amount.toLocaleString('en-IN', { minimumFractionDigits: 2 }), styles: { halign: 'right', fontStyle: 'bold' } }
-                            ]]
+                            ]
                         ],
                         theme: 'grid',
                         headStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], lineWidth: 0.1, fontStyle: 'bold', fontSize: 7, font: 'Poppins' },
