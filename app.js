@@ -500,18 +500,7 @@ try {
                     <svg class="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
                     <input type="text" class="form-input search-input" placeholder="Search products, category, description, barcode..." value="${ui.products.searchQuery || ''}" oninput="ui.products.search(this.value)">
                 </div>
-                <button class="toolbar-btn">
-                    Select Category
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                </button>
                 <div class="ml-auto flex items-center gap-2">
-                    <button class="p-2 text-slate-400 hover:text-slate-600">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg>
-                    </button>
-                    <button class="toolbar-btn">
-                        Actions
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                    </button>
                     <button onclick="ui.modal.open('product')" class="bg-[#3b82f6] text-white px-6 py-2 rounded-lg font-bold hover:bg-blue-600 transition-all">+ New Item</button>
                 </div>
             </div>
@@ -550,10 +539,16 @@ try {
                                 </td>
                                 <td class="p-4">
                                     <div class="flex items-center gap-2">
-                                        <button onclick="ui.modal.edit('product', '${i.id}')" class="text-slate-400 hover:text-blue-600 transition-colors" title="Edit Product">
-                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
-                                        </button>
-                                        <button onclick="api.masters.delete('products', '${i.id}')" class="text-slate-400 hover:text-red-500 transition-colors" title="Delete Product">
+                                        ${filter === 'Deleted' ? `
+                                            <button onclick="api.masters.restore('products', '${i.id}')" class="text-slate-400 hover:text-emerald-500 transition-colors" title="Restore Product">
+                                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                                            </button>
+                                        ` : `
+                                            <button onclick="ui.modal.edit('product', '${i.id}')" class="text-slate-400 hover:text-blue-600 transition-colors" title="Edit Product">
+                                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                                            </button>
+                                        `}
+                                        <button onclick="api.masters.delete('products', '${i.id}')" class="text-slate-400 hover:text-red-500 transition-colors" title="${filter === 'Deleted' ? 'Permanent Delete' : 'Delete Product'}">
                                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                                         </button>
                                     </div>
@@ -2006,7 +2001,7 @@ try {
                 return matchCategory && matchType && matchStatus && matchSearch;
             });
 
-            const active = items.filter(i => i.status === 'In Warranty');
+            const active = items.filter(i => i.status === 'Active');
             const expired = items.filter(i => i.status === 'Expired');
             const expiringWeek = items.filter(i => {
                 const ed = new Date(i.end_date);
@@ -2303,7 +2298,7 @@ try {
                 reports: 'GST Filing Reports',
                 settings: 'System Settings'
             };
-            el.viewTitle.textContent = titles[state.view] || 'Laga Suite';
+            el.viewTitle.textContent = titles[state.view] || 'License Management';
 
             document.querySelectorAll('.nav-link').forEach(link => {
                 if (link.getAttribute('href') === '#' + state.view) {
@@ -2328,6 +2323,15 @@ try {
                     break;
                 case 'products':
                     let products = state.products;
+
+                    // Filter by deleted status based on tab
+                    if (ui.products.filter === 'Deleted') {
+                        products = products.filter(p => p.is_deleted === true);
+                    } else {
+                        products = products.filter(p => !p.is_deleted);
+                    }
+
+                    // Apply search filter
                     if (ui.products.searchQuery) {
                         const q = ui.products.searchQuery.toLowerCase();
                         products = products.filter(p =>
@@ -2558,6 +2562,30 @@ try {
 
             },
 
+        },
+        products: {
+            searchQuery: '',
+            filter: 'Items',
+            search: (query) => {
+                ui.products.searchQuery = query;
+                render();
+            },
+            setFilter: (filter) => {
+                ui.products.filter = filter;
+                render();
+            }
+        },
+        customers: {
+            searchQuery: '',
+            filter: 'All Customers',
+            search: (query) => {
+                ui.customers.searchQuery = query;
+                render();
+            },
+            setFilter: (filter) => {
+                ui.customers.filter = filter;
+                render();
+            }
         },
         customer: {
             copyBilling: () => {
@@ -4272,7 +4300,7 @@ try {
                     badge.textContent = 'Expiring Soon';
                     badge.className = 'bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest';
                 } else {
-                    badge.textContent = 'In Warranty';
+                    badge.textContent = 'Active';
                     badge.className = 'bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest';
                 }
             },
@@ -6674,14 +6702,38 @@ try {
                 }
             },
             delete: async (table, id) => {
-                if (!confirm('Permanent Action: Are you sure you want to delete this master entry?')) return;
+                const item = table === 'products' ? state.products.find(p => p.id === id) : null;
+                const isSoftDeletedAlready = item && item.is_deleted;
+                const useSoftDelete = table === 'products' && !isSoftDeletedAlready;
+
+                if (!confirm(useSoftDelete ? 'Move this item to Trash?' : 'Permanent Action: Are you sure you want to delete this master entry?')) return;
+
                 try {
-                    const { error } = await supabaseClient.from(table).delete().eq('id', id);
+                    let error;
+                    if (useSoftDelete) {
+                        const { error: err } = await supabaseClient.from(table).update({ is_deleted: true }).eq('id', id);
+                        error = err;
+                    } else {
+                        const { error: err } = await supabaseClient.from(table).delete().eq('id', id);
+                        error = err;
+                    }
                     if (error) throw error;
                     await api.masters.fetch();
+                    api.notifications.show(useSoftDelete ? 'Item moved to Trash' : 'Item deleted permanently');
                 } catch (err) {
                     console.error('Delete Error:', err);
                     alert('Delete Failed: ' + err.message);
+                }
+            },
+            restore: async (table, id) => {
+                try {
+                    const { error } = await supabaseClient.from(table).update({ is_deleted: false }).eq('id', id);
+                    if (error) throw error;
+                    await api.masters.fetch();
+                    api.notifications.show('Item restored successfully');
+                } catch (err) {
+                    console.error('Restore Error:', err);
+                    alert('Restore Failed: ' + err.message);
                 }
             }
         },
