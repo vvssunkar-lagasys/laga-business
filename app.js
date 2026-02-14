@@ -6154,110 +6154,183 @@ try {
                 btn.disabled = true;
                 btn.innerHTML = 'Saving...';
 
-                try {
-                    const qtnType = document.getElementById('qtn-type')?.value || 'Regular';
-                    const quotation = {
-                        quotation_no: document.getElementById('qtn-no').value,
-                        date: document.getElementById('qtn-date').value,
-                        customer_id: customerId,
-                        validity_date: document.getElementById('qtn-validity').value,
-                        subject: document.getElementById('qtn-subject').value,
-                        type: qtnType,
-                        status: isDraft ? 'Draft' : 'Open',
-                        currency: document.getElementById('qtn-currency')?.value || 'INR',
-                        bank_id: document.getElementById('qtn-bank')?.value || null,
-                        payment_terms: document.getElementById('qtn-payment-terms').value,
-                        delivery_time: document.getElementById('qtn-delivery-time').value,
-                        delivery_mode: document.getElementById('qtn-delivery-mode').value,
-                        terms: document.getElementById('qtn-terms').value,
-                        total_amount: parseFloat(document.getElementById('qtn-sum-total').textContent.replace(/[^0-9.]/g, '')),
-                        bank_charges: parseFloat(document.getElementById('qtn-bank-charges')?.value) || 0,
-                        user_id: state.user.id,
-                        metadata: {
-                            country: document.getElementById('qtn-country')?.value || '',
-                            include_signature: ui.quotation_v2.includeSignature,
-                            round_off: document.getElementById('qtn-round-off')?.checked,
-                            custom_fields: Array.from(document.querySelectorAll('#qtn-custom-fields > div')).map(div => ({
-                                name: div.querySelector('.qcf-name').value,
-                                value: div.querySelector('.qcf-value').value
-                            })).filter(f => f.name || f.value)
-                        }
-                    };
+                const maxRetries = 5;
+                let attempt = 0;
+                let savedSuccess = false;
 
-                    let qtnData;
-                    if (isRevision) {
-                        // Create Revision logic
-                        const baseNo = quotation.quotation_no.split('-R')[0];
-                        const { data: existingDocs } = await supabaseClient
-                            .from('quotations')
-                            .select('quotation_no')
-                            .ilike('quotation_no', `${baseNo}%`)
-                            .order('quotation_no', { ascending: false })
-                            .limit(1);
+                while (attempt < maxRetries && !savedSuccess) {
+                    attempt++;
+                    try {
+                        const qtnType = document.getElementById('qtn-type')?.value || 'Regular';
 
-                        if (existingDocs && existingDocs.length > 0) {
-                            const lastNo = existingDocs[0].quotation_no;
-                            let nextRev = 1;
-                            const revMatch = lastNo.match(/-R(\d+)$/);
-                            if (revMatch) {
-                                nextRev = parseInt(revMatch[1]) + 1;
+                        // Regenerate Quotation No if this is a retry and not a revision/edit
+                        if (attempt > 1 && !isRevision && !ui.quotation_v2.activeId) {
+                            console.log(`Retrying save (Attempt ${attempt})... generating new number...`);
+
+                            const currentVal = document.getElementById('qtn-no').value;
+                            let nextSeq = 1;
+                            let prefix = '';
+                            let padding = 3;
+
+                            // 1. Parse current value locally
+                            const match = currentVal.match(/(.*-)(\d+)$/);
+                            if (match) {
+                                prefix = match[1];
+                                nextSeq = parseInt(match[2]) + 1;
+                                padding = Math.max(match[2].length, 3);
                             }
-                            quotation.quotation_no = `${baseNo}-R${nextRev}`;
-                        } else {
-                            quotation.quotation_no = `${baseNo}-R1`;
+
+                            // 2. Check DB for latest to skip ahead if needed
+                            const fyStart = state.fy.split('-')[0];
+                            const fyEnd = parseInt(state.fy.split('-')[1]) + 2000;
+
+                            const { data: latest, error: fetchErr } = await supabaseClient
+                                .from('quotations')
+                                .select('quotation_no')
+                                .gte('date', `${fyStart}-04-01`)
+                                .lte('date', `${fyEnd}-03-31`)
+                                .order('quotation_no', { ascending: false })
+                                .limit(1);
+
+                            if (!fetchErr && latest && latest.length > 0 && latest[0].quotation_no) {
+                                const dbMatch = latest[0].quotation_no.match(/-(\d+)$/);
+                                if (dbMatch) {
+                                    const dbNext = parseInt(dbMatch[1]) + 1;
+                                    if (dbNext > nextSeq) nextSeq = dbNext;
+                                }
+                            }
+
+                            // 3. Update the input
+                            if (prefix) {
+                                // If we parsed a prefix, use it
+                                const newDocNo = `${prefix}${String(nextSeq).padStart(padding, '0')}`;
+                                document.getElementById('qtn-no').value = newDocNo;
+                            } else {
+                                // Fallback to standard generation if parsing failed
+                                const newDocNo = `LGS-QTN-${fyStart}-${String(fyEnd).slice(-2)}-${String(nextSeq).padStart(3, '0')}`;
+                                document.getElementById('qtn-no').value = newDocNo;
+                            }
+                            console.log('New Quotation No:', document.getElementById('qtn-no').value);
                         }
 
-                        const { data, error } = await supabaseClient.from('quotations').insert(quotation).select().single();
-                        if (error) throw error;
-                        qtnData = data;
-                    } else if (ui.quotation_v2.activeId) {
-                        const { data, error } = await supabaseClient
-                            .from('quotations')
-                            .update(quotation)
-                            .eq('id', ui.quotation_v2.activeId)
-                            .select()
-                            .single();
-                        if (error) throw error;
-                        qtnData = data;
-                        await supabaseClient.from('quotation_items').delete().eq('quotation_id', qtnData.id);
-                    } else {
-                        const { data, error } = await supabaseClient.from('quotations').insert(quotation).select().single();
-                        if (error) throw error;
-                        qtnData = data;
-                    }
+                        const quotation = {
+                            quotation_no: document.getElementById('qtn-no').value,
+                            date: document.getElementById('qtn-date').value,
+                            customer_id: customerId,
+                            validity_date: document.getElementById('qtn-validity').value,
+                            subject: document.getElementById('qtn-subject').value,
+                            type: qtnType,
+                            status: isDraft ? 'Draft' : 'Open',
+                            currency: document.getElementById('qtn-currency')?.value || 'INR',
+                            bank_id: document.getElementById('qtn-bank')?.value || null,
+                            payment_terms: document.getElementById('qtn-payment-terms').value,
+                            delivery_time: document.getElementById('qtn-delivery-time').value,
+                            delivery_mode: document.getElementById('qtn-delivery-mode').value,
+                            terms: document.getElementById('qtn-terms').value,
+                            total_amount: parseFloat(document.getElementById('qtn-sum-total').textContent.replace(/[^0-9.]/g, '')),
+                            bank_charges: parseFloat(document.getElementById('qtn-bank-charges')?.value) || 0,
+                            user_id: state.user.id,
+                            metadata: {
+                                country: document.getElementById('qtn-country')?.value || '',
+                                include_signature: ui.quotation_v2.includeSignature,
+                                round_off: document.getElementById('qtn-round-off')?.checked,
+                                custom_fields: Array.from(document.querySelectorAll('#qtn-custom-fields > div')).map(div => ({
+                                    name: div.querySelector('.qcf-name').value,
+                                    value: div.querySelector('.qcf-value').value
+                                })).filter(f => f.name || f.value)
+                            }
+                        };
 
-                    const items = [];
-                    rows.forEach(row => {
-                        const productId = row.querySelector('.product-id-hidden').value;
-                        if (!productId) return;
-                        items.push({
-                            quotation_id: qtnData.id,
-                            product_id: productId,
-                            hsn_code: row.querySelector('.hsn-input').value,
-                            qty: parseFloat(row.querySelector('.qty-input').value),
-                            rate: parseFloat(row.querySelector('.rate-input').value),
-                            discount: parseFloat(row.querySelector('.discount-input').value),
-                            user_id: state.user.id
+                        let qtnData;
+                        if (isRevision) {
+                            // Create Revision logic
+                            const baseNo = quotation.quotation_no.split('-R')[0];
+                            const { data: existingDocs } = await supabaseClient
+                                .from('quotations')
+                                .select('quotation_no')
+                                .ilike('quotation_no', `${baseNo}%`)
+                                .order('quotation_no', { ascending: false })
+                                .limit(1);
+
+                            if (existingDocs && existingDocs.length > 0) {
+                                const lastNo = existingDocs[0].quotation_no;
+                                let nextRev = 1;
+                                const revMatch = lastNo.match(/-R(\d+)$/);
+                                if (revMatch) {
+                                    nextRev = parseInt(revMatch[1]) + 1;
+                                }
+                                quotation.quotation_no = `${baseNo}-R${nextRev}`;
+                            } else {
+                                quotation.quotation_no = `${baseNo}-R1`;
+                            }
+
+                            const { data, error } = await supabaseClient.from('quotations').insert(quotation).select().single();
+                            if (error) throw error;
+                            qtnData = data;
+                        } else if (ui.quotation_v2.activeId) {
+                            const { data, error } = await supabaseClient
+                                .from('quotations')
+                                .update(quotation)
+                                .eq('id', ui.quotation_v2.activeId)
+                                .select()
+                                .single();
+                            if (error) throw error;
+                            qtnData = data;
+                            await supabaseClient.from('quotation_items').delete().eq('quotation_id', qtnData.id);
+                        } else {
+                            const { data, error } = await supabaseClient.from('quotations').insert(quotation).select().single();
+                            if (error) throw error;
+                            qtnData = data;
+                        }
+
+                        const items = [];
+                        rows.forEach(row => {
+                            const productId = row.querySelector('.product-id-hidden').value;
+                            if (!productId) return;
+                            items.push({
+                                quotation_id: qtnData.id,
+                                product_id: productId,
+                                hsn_code: row.querySelector('.hsn-input').value,
+                                qty: parseFloat(row.querySelector('.qty-input').value),
+                                rate: parseFloat(row.querySelector('.rate-input').value),
+                                discount: parseFloat(row.querySelector('.discount-input').value),
+                                user_id: state.user.id
+                            });
                         });
-                    });
 
-                    const { error: itemError } = await supabaseClient.from('quotation_items').insert(items);
-                    if (itemError) throw itemError;
+                        const { error: itemError } = await supabaseClient.from('quotation_items').insert(items);
+                        if (itemError) throw itemError;
 
-                    ui.modal.close();
-                    await api.docs.fetch('quotations');
-                    api.notifications.show(`Quotation ${isDraft ? 'Draft ' : (isRevision ? 'Revision ' : (ui.quotation_v2.activeId ? 'Updated ' : ''))}Saved Successfully`);
+                        ui.modal.close();
+                        await api.docs.fetch('quotations');
+                        api.notifications.show(`Quotation ${isDraft ? 'Draft ' : (isRevision ? 'Revision ' : (ui.quotation_v2.activeId ? 'Updated ' : ''))}Saved Successfully`);
 
-                    if (print) {
-                        api.docs.generatePDF('quotations', qtnData.id, ui.quotation_v2.includeSignature);
+                        if (print) {
+                            await api.docs.generatePDF('quotations', qtnData.id, ui.quotation_v2.includeSignature);
+                        }
+
+                        savedSuccess = true;
+
+                    } catch (err) {
+                        console.error(`Save Attempt ${attempt} Failed:`, err);
+                        // Check for duplicate key error (Postgres code 23505) or unique constraint violation message
+                        if ((err.code === '23505' || err.message?.includes('violates unique constraint') || err.message?.includes('duplicate key')) && !ui.quotation_v2.activeId && !isRevision) {
+                            if (attempt < maxRetries) {
+                                console.warn('Duplicate quotation number detected, retrying with new number...');
+                                continue; // Retry loop
+                            } else {
+                                alert('Failed to save after multiple attempts. Please try again manually.');
+                            }
+                        } else {
+                            alert('Save Failed: ' + err.message);
+                            break; // Don't retry for other errors
+                        }
                     }
-                } catch (err) {
-                    console.error('Save Error:', err);
-                    alert('Save Failed: ' + err.message);
-                } finally {
-                    btn.disabled = false;
-                    btn.innerHTML = originalText;
                 }
+
+                // Always reset button state after loop finishes
+                btn.disabled = false;
+                btn.innerHTML = originalText;
             },
         },
 
