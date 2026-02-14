@@ -1997,12 +1997,13 @@ try {
             let filteredItems = items.filter(i => {
                 const matchCategory = !filters.category || i.category === filters.category;
                 const matchType = !filters.type || i.type === filters.type;
+                const matchStatus = !filters.status || i.status === filters.status;
                 const matchSearch = !searchQuery ||
                     (i.software_name || '').toLowerCase().includes(searchQuery) ||
                     (i.serial_number || '').toLowerCase().includes(searchQuery) ||
                     (i.customers?.name || '').toLowerCase().includes(searchQuery);
 
-                return matchCategory && matchType && matchSearch;
+                return matchCategory && matchType && matchStatus && matchSearch;
             });
 
             const active = items.filter(i => i.status === 'In Warranty');
@@ -2068,6 +2069,12 @@ try {
                             <option value="">All Types</option>
                             <option value="New" ${filters.type === 'New' ? 'selected' : ''}>New</option>
                             <option value="Renewal" ${filters.type === 'Renewal' ? 'selected' : ''}>Renewal</option>
+                        </select>
+                        <select onchange="ui.licenses.filter('status', this.value)" class="bg-white border text-[10px] font-black uppercase tracking-widest rounded-lg px-3 py-1.5 outline-none">
+                            <option value="">All Statuses</option>
+                            <option value="Active" ${filters.status === 'Active' ? 'selected' : ''}>Active</option>
+                            <option value="Expired" ${filters.status === 'Expired' ? 'selected' : ''}>Expired</option>
+                            <option value="Expiring Soon" ${filters.status === 'Expiring Soon' ? 'selected' : ''}>Expiring Soon</option>
                         </select>
                         <button onclick="ui.licenses.export()" class="ml-auto text-blue-600 text-[10px] font-black uppercase tracking-widest hover:text-blue-700">Export Registry</button>
                     </div>
@@ -4201,7 +4208,7 @@ try {
             }
         },
         licenses: {
-            filters: { category: '', type: '' },
+            filters: { category: '', type: '', status: '' },
             searchQuery: '',
 
             search: (val) => {
