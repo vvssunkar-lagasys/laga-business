@@ -158,8 +158,9 @@ try {
             render();
         });
 
-        el.fySelect?.addEventListener('change', (e) => {
+        el.fySelect?.addEventListener('change', async (e) => {
             state.fy = e.target.value;
+            await api.reports.fetchStats();
             render();
         });
     };
@@ -274,31 +275,209 @@ try {
 
     // --- Views & Components (Templates) ---
     const Templates = {
-        Dashboard: (data) => `
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 animate-slide-up">
-            <div class="glass p-6 rounded-2xl shadow-sm border-l-4 border-blue-500">
-                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Total Sales</p>
-                <h4 class="text-2xl font-bold text-slate-900 mt-1">₹${data.sales.toFixed(2)}</h4>
+        Dashboard: (data) => {
+            // Calculate additional metrics
+            const invoices = state.invoices.filter(i => isWithinFY(i.date, state.fy));
+            const quotations = state.quotations.filter(q => isWithinFY(q.date, state.fy));
+            const totalInvoices = invoices.length;
+            const paidInvoices = invoices.filter(i => i.status === 'Paid').length;
+            const pendingInvoices = invoices.filter(i => i.status === 'Pending').length;
+            const overdueInvoices = invoices.filter(i => i.status === 'Pending' && new Date(i.due_date) < new Date()).length;
+
+            // Currency breakdown
+            const inrInvoices = invoices.filter(i => (i.currency || 'INR') === 'INR');
+            const usdInvoices = invoices.filter(i => i.currency === 'USD');
+            const inrRevenue = inrInvoices.reduce((sum, i) => sum + (i.total_amount || 0), 0);
+            const usdRevenue = usdInvoices.reduce((sum, i) => sum + (i.total_amount || 0), 0);
+
+            // MoM Comparison logic
+            const now = new Date();
+            const currentMonth = now.getMonth();
+            const currentYear = now.getFullYear();
+
+            const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+            const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+
+            const thisMonthInvoices = invoices.filter(i => {
+                const d = new Date(i.date);
+                return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+            });
+            const lastMonthInvoices = state.invoices.filter(i => {
+                const d = new Date(i.date);
+                return d.getMonth() === lastMonth && d.getFullYear() === lastMonthYear;
+            });
+
+            const thisMonthSales = thisMonthInvoices.reduce((sum, i) => sum + (i.total_amount || 0), 0);
+            const lastMonthSales = lastMonthInvoices.reduce((sum, i) => sum + (i.total_amount || 0), 0);
+
+            const salesGrowth = lastMonthSales > 0 ? ((thisMonthSales - lastMonthSales) / lastMonthSales * 100) : 100;
+
+            // Attention Needed Alerts
+            const highValueOverdue = invoices.filter(i => i.status === 'Pending' && (i.total_amount || 0) > 100000);
+            const expiringQuotations = quotations.filter(q => {
+                if (!q.validity_date) return false;
+                const validity = new Date(q.validity_date);
+                const diff = (validity - now) / (1000 * 60 * 60 * 24);
+                return diff >= 0 && diff <= 7;
+            });
+
+
+
+
+
+
+            return `
+            <!-- Enhanced Stats Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-slide-up">
+                <!-- Total Sales Card -->
+                <div class="dashboard-stat-card gradient-blue">
+                    <div class="stat-icon">
+                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                    </div>
+                    <div class="stat-content">
+                        <p class="stat-label">Total Sales</p>
+                        <h4 class="stat-value">₹${data.sales.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</h4>
+                    </div>
+                </div>
+
+                <!-- Tax Collected Card -->
+                <div class="dashboard-stat-card gradient-emerald">
+                    <div class="stat-icon">
+                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+                        </svg>
+                    </div>
+                    <div class="stat-content">
+                        <p class="stat-label">Tax Collected</p>
+                        <h4 class="stat-value">₹${data.tax.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</h4>
+                        <div class="stat-progress">
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: ${Math.min(100, (data.tax / data.sales * 100))}%"></div>
+                            </div>
+                            <span class="progress-label">${((data.tax / data.sales * 100) || 0).toFixed(1)}% of sales</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Total Quotations Card -->
+                <div class="dashboard-stat-card gradient-orange">
+                    <div class="stat-icon">
+                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"/>
+                        </svg>
+                    </div>
+                    <div class="stat-content">
+                        <p class="stat-label">Total Quotations</p>
+                        <h4 class="stat-value">${quotations.length}</h4>
+                        <p class="stat-subtitle">Drafts & Sent</p>
+                    </div>
+                </div>
+
+                <!-- Total Invoices Card -->
+                <div class="dashboard-stat-card gradient-indigo">
+                    <div class="stat-icon">
+                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                        </svg>
+                    </div>
+                    <div class="stat-content">
+                        <p class="stat-label">Total Invoices</p>
+                        <h4 class="stat-value">${totalInvoices}</h4>
+                        <div class="stat-breakdown">
+                            <span class="breakdown-item paid">${paidInvoices} Paid</span>
+                            <span class="breakdown-item pending">${pendingInvoices} Pending</span>
+                        </div>
+                    </div>
+                </div>
+
+
             </div>
-            <div class="glass p-6 rounded-2xl shadow-sm border-l-4 border-emerald-500">
-                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Tax Collected</p>
-                <h4 class="text-2xl font-bold text-emerald-600 mt-1">₹${data.tax.toFixed(2)}</h4>
+
+            <!-- Multi-Currency Section -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
+                <!-- INR Revenue -->
+                <div class="currency-card inr-card">
+                    <div class="currency-header">
+                        <div class="currency-icon">₹</div>
+                        <div>
+                            <h5 class="currency-label">INR Revenue</h5>
+                            <p class="currency-count">${inrInvoices.length} invoices</p>
+                        </div>
+                    </div>
+                    <h3 class="currency-amount">₹${inrRevenue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</h3>
+                    <div class="currency-chart">
+                        <div class="mini-bar" style="width: ${inrRevenue > 0 ? '100%' : '0%'}"></div>
+                    </div>
+                </div>
+
+                <!-- USD Revenue -->
+                <div class="currency-card usd-card">
+                    <div class="currency-header">
+                        <div class="currency-icon">$</div>
+                        <div>
+                            <h5 class="currency-label">USD Revenue (Exports)</h5>
+                            <p class="currency-count">${usdInvoices.length} invoices</p>
+                        </div>
+                    </div>
+                    <h3 class="currency-amount">$${usdRevenue.toLocaleString('en-US', { maximumFractionDigits: 0 })}</h3>
+                    <div class="currency-chart">
+                        <div class="mini-bar usd" style="width: ${usdRevenue > 0 ? '100%' : '0%'}"></div>
+                    </div>
+                </div>
             </div>
-            <div class="glass p-6 rounded-2xl shadow-sm border-l-4 border-orange-500">
-                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">ITC Claimed</p>
-                <h4 class="text-2xl font-bold text-orange-600 mt-1">₹${data.itc.toFixed(2)}</h4>
+
+            <!-- Enhanced Analytics Section -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-8">
+                <!-- Revenue Trend Chart -->
+                <div class="analytics-card lg:col-span-2">
+                    <div class="flex items-center justify-between mb-4">
+                        <h5 class="analytics-title">Revenue Trend (FY ${state.fy})</h5>
+                        <div class="text-xs text-slate-400">Monthly breakdown in ₹</div>
+                    </div>
+                    <div style="height: 300px; position: relative;">
+                        <canvas id="revenueTrendChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Attention Needed Alerts -->
+                <div class="analytics-card">
+                    <h5 class="analytics-title">Attention Needed</h5>
+                    <div class="alert-stack mt-4">
+                        ${highValueOverdue.length === 0 && expiringQuotations.length === 0 ? `
+                            <div class="empty-alert">
+                                <svg class="w-8 h-8 text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                </svg>
+                                <p>All clear! No critical items.</p>
+                            </div>
+                        ` : ''}
+                        
+                        ${highValueOverdue.map(inv => `
+                            <div class="alert-item high-value" onclick="window.location.hash='#invoices'; ui.sales.search('${inv.invoice_no}')">
+                                <div class="alert-icon">⚠️</div>
+                                <div class="alert-content">
+                                    <span class="alert-label">High-Value Overdue</span>
+                                    <span class="alert-value">₹${inv.total_amount.toLocaleString()} - ${inv.invoice_no}</span>
+                                </div>
+                            </div>
+                        `).join('')}
+
+                        ${expiringQuotations.map(q => `
+                            <div class="alert-item expiring" onclick="window.location.hash='#quotations'; ui.quotations.search('${q.quotation_no}')">
+                                <div class="alert-icon">⏳</div>
+                                <div class="alert-content">
+                                    <span class="alert-label">Quotation Expiring</span>
+                                    <span class="alert-value">${q.quotation_no} - ${formatDate(q.validity_date)}</span>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
             </div>
-            <div class="glass p-6 rounded-2xl shadow-sm border-l-4 border-slate-900">
-                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Net Payable</p>
-                <h4 class="text-2xl font-bold text-slate-900 mt-1">₹${(data.tax - data.itc).toFixed(2)}</h4>
-            </div>
-        </div>
-        <div class="mt-8 glass p-8 rounded-3xl border border-slate-100 min-h-[400px] flex flex-col items-center justify-center text-center">
-            <div class="w-16 h-16 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center text-2xl mb-4">📈</div>
-            <h5 class="text-lg font-bold text-slate-900">Performance Trends</h5>
-            <p class="text-sm text-slate-500 max-w-sm mt-2">Charts and analytics are ready to be integrated using the master data in your account.</p>
-        </div>
-    `,
+        `;
+        },
         Products: (items, filter = 'Items') => `
         <div class="animate-fade-in">
             <div class="dashboard-header">
@@ -1234,7 +1413,7 @@ try {
                         </div>
                         <div class="flex items-center gap-4">
 
-                            <button onclick="ui.modal.open('quotation-new')" class="bg-[#3b82f6] text-white px-6 py-2 rounded-lg font-bold hover:bg-blue-600 transition-all">+ Create Quotation</button>
+                            <button onclick="ui.quotation_v2.activeId = null; ui.quotation_v2.activeStatus = null; ui.modal.open('quotation-new')" class="bg-[#3b82f6] text-white px-6 py-2 rounded-lg font-bold hover:bg-blue-600 transition-all">+ Create Quotation</button>
                         </div>
                     </div>
 
@@ -1338,7 +1517,7 @@ try {
                                                 <div class="empty-state-icon opacity-50 grayscale mb-4 text-4xl">🧾</div>
                                                 <h3 class="text-slate-600 font-bold">No quotations found.</h3>
                                                 <p class="text-slate-400 text-xs">Try searching with a reference or customer name.</p>
-                                                <button onclick="ui.modal.open('quotation-new')" class="mt-6 bg-blue-600 text-white px-6 py-2 rounded-xl text-sm font-bold shadow-lg shadow-blue-500/20 hover:scale-105 transition-all">Create New Quotation</button>
+                                                <button onclick="ui.quotation_v2.activeId = null; ui.quotation_v2.activeStatus = null; ui.modal.open('quotation-new')" class="mt-6 bg-blue-600 text-white px-6 py-2 rounded-xl text-sm font-bold shadow-lg shadow-blue-500/20 hover:scale-105 transition-all">Create New Quotation</button>
                                             </div>
                                         </td>
                                     </tr>
@@ -1568,7 +1747,7 @@ try {
                             <div class="w-2 h-6 bg-${config.color}-500 rounded-full"></div>
                             <h4 class="font-bold text-slate-900">${config.title}</h4>
                         </div>
-                        <button onclick="ui.modal.open('${type === 'quotations' ? 'quotation-new' : type}')" class="bg-${config.color}-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-${config.color}-700 transition-all shadow-sm shadow-${config.color}-500/10">+ ${config.btn}</button>
+                        <button onclick="${type === 'quotations' ? 'ui.quotation_v2.activeId = null; ui.quotation_v2.activeStatus = null; ' : ''}ui.modal.open('${type === 'quotations' ? 'quotation-new' : type}')" class="bg-${config.color}-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-${config.color}-700 transition-all shadow-sm shadow-${config.color}-500/10">+ ${config.btn}</button>
                     </div>
                     <table class="w-full text-left">
                         <thead class="bg-slate-50/80 text-[10px] uppercase font-bold text-slate-400">
@@ -1668,7 +1847,7 @@ try {
                     <!-- Branding -->
                     <div class="space-y-4">
                         <h3 class="text-sm font-bold text-slate-900 border-b border-slate-100 pb-2 uppercase tracking-wider">Branding & Assets</h3>
-                        <div class="grid grid-cols-3 gap-6">
+                        <div class="grid grid-cols-2 lg:grid-cols-4 gap-6">
                             <!-- Logo -->
                             <div class="bg-slate-50 p-4 rounded-xl border border-slate-100 text-center group relative">
                                 <label class="block cursor-pointer">
@@ -1699,6 +1878,17 @@ try {
                                         ${data.stamp ? `<img src="${data.stamp}" class="w-full h-full object-contain">` : `<span class="text-slate-300 text-xs">No Stamp</span>`}
                                     </div>
                                     <input type="file" name="stamp" accept="image/*" class="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                                </label>
+                            </div>
+
+                            <!-- Revenue Stamp -->
+                            <div class="bg-slate-50 p-4 rounded-xl border border-slate-100 text-center">
+                                <label class="block cursor-pointer">
+                                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Revenue Stamp</span>
+                                    <div class="w-32 h-32 mx-auto bg-white rounded-lg shadow-sm flex items-center justify-center overflow-hidden mb-3 border border-slate-200">
+                                        ${data.revenue_stamp ? `<img src="${data.revenue_stamp}" class="w-full h-full object-contain">` : `<span class="text-slate-300 text-xs">No Stamp</span>`}
+                                    </div>
+                                    <input type="file" name="revenue_stamp" accept="image/*" class="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
                                 </label>
                             </div>
                         </div>
@@ -2120,6 +2310,8 @@ try {
                         tax: state.reports.sales.tax,
                         itc: state.reports.purchases.tax
                     });
+                    // Initialize charts after rendering
+                    ui.dashboard.initCharts();
                     break;
                 case 'products':
                     let products = state.products;
@@ -2219,6 +2411,141 @@ try {
 
     // --- UI Helpers ---
     const ui = {
+        dashboard: {
+            initCharts: () => {
+                const ctx = document.getElementById('revenueTrendChart');
+                if (!ctx) return;
+
+                const inrValues = [];
+                const usdValues = [];
+                const labels = [];
+
+                let startYear;
+                try {
+                    const [sy, ey] = state.fy.split('-');
+                    startYear = parseInt(sy);
+                    if (startYear < 100) startYear += 2000;
+                } catch (e) {
+                    startYear = new Date().getFullYear();
+                }
+
+                const fyMonths = [
+                    { m: 3, y: startYear }, { m: 4, y: startYear }, { m: 5, y: startYear },
+                    { m: 6, y: startYear }, { m: 7, y: startYear }, { m: 8, y: startYear },
+                    { m: 9, y: startYear }, { m: 10, y: startYear }, { m: 11, y: startYear },
+                    { m: 0, y: startYear + 1 }, { m: 1, y: startYear + 1 }, { m: 2, y: startYear + 1 }
+                ];
+
+                fyMonths.forEach(slot => {
+                    const d = new Date(slot.y, slot.m, 1);
+                    const monthLabel = d.toLocaleString('default', { month: 'short' });
+                    labels.push(monthLabel);
+
+                    const monthInvoices = state.invoices.filter(inv => {
+                        const invDate = new Date(inv.date);
+                        return invDate.getMonth() === slot.m && invDate.getFullYear() === slot.y;
+                    });
+
+                    const inrTotal = monthInvoices
+                        .filter(inv => (inv.currency || 'INR') === 'INR')
+                        .reduce((sum, inv) => sum + (inv.total_amount || 0), 0);
+
+                    const usdTotal = monthInvoices
+                        .filter(inv => inv.currency === 'USD')
+                        .reduce((sum, inv) => sum + (inv.total_amount || 0), 0);
+
+                    inrValues.push(inrTotal);
+                    usdValues.push(usdTotal);
+                });
+
+                if (window.Chart) {
+                    new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: labels,
+                            datasets: [
+                                {
+                                    label: 'INR Revenue (₹)',
+                                    data: inrValues,
+                                    borderColor: '#3b82f6',
+                                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                                    borderWidth: 3,
+                                    fill: true,
+                                    tension: 0.4,
+                                    pointBackgroundColor: '#3b82f6',
+                                    pointBorderColor: '#fff',
+                                    pointBorderWidth: 2,
+                                    pointRadius: 4,
+                                    pointHoverRadius: 6
+                                },
+                                {
+                                    label: 'USD Revenue ($)',
+                                    data: usdValues,
+                                    borderColor: '#10b981',
+                                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                                    borderWidth: 3,
+                                    fill: true,
+                                    tension: 0.4,
+                                    pointBackgroundColor: '#10b981',
+                                    pointBorderColor: '#fff',
+                                    pointBorderWidth: 2,
+                                    pointRadius: 4,
+                                    pointHoverRadius: 6
+                                }
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    display: true,
+                                    position: 'top',
+                                    align: 'end',
+                                    labels: {
+                                        boxWidth: 8,
+                                        usePointStyle: true,
+                                        font: { family: 'Poppins', size: 10, weight: '600' }
+                                    }
+                                },
+                                tooltip: {
+                                    backgroundColor: '#1e293b',
+                                    titleFont: { family: 'Poppins', size: 12 },
+                                    bodyFont: { family: 'Poppins', size: 12 },
+                                    padding: 12,
+                                    displayColors: true,
+                                    callbacks: {
+                                        label: (context) => {
+                                            const label = context.dataset.label || '';
+                                            const value = context.raw || 0;
+                                            const prefix = label.includes('USD') ? '$' : '₹';
+                                            return `${label}: ${prefix}${value.toLocaleString()}`;
+                                        }
+                                    }
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    grid: { color: 'rgba(0,0,0,0.05)', drawBorder: false },
+                                    ticks: {
+                                        font: { family: 'Poppins', size: 10 },
+                                        callback: (value) => value >= 1000 ? (value / 1000) + 'k' : value
+                                    }
+                                },
+                                x: {
+                                    grid: { display: false, drawBorder: false },
+                                    ticks: { font: { family: 'Poppins', size: 10 } }
+                                }
+                            }
+                        }
+                    });
+                }
+
+
+            },
+
+        },
         customer: {
             copyBilling: () => {
                 const form = document.getElementById('customer-form');
@@ -2343,15 +2670,7 @@ try {
                 const root = document.getElementById('modal-root');
                 overlay.classList.add('active');
 
-                if (type === 'quotation-new') {
-                    ui.quotation_v2.activeId = null;
-                    ui.quotation_v2.activeStatus = null;
-                }
 
-                if (type === 'proforma-new') {
-                    ui.proforma_v2.activeId = null;
-                    ui.proforma_v2.activeStatus = null;
-                }
 
 
                 if (type === 'product') {
@@ -3219,6 +3538,7 @@ try {
                             <span id="qtn-footer-total" class="text-sm font-black text-slate-900 bg-slate-100 px-3 py-1 rounded-lg">₹0.00</span>
                         </div>
                         <div class="flex gap-3">
+                            ${ui.quotation_v2.activeId ? `<button onclick="ui.quotation_v2.save(false, false, true)" class="px-6 py-2 bg-purple-50 border border-purple-200 text-purple-600 rounded-lg text-xs font-black uppercase tracking-wider hover:bg-purple-100 transition-all">Create Revision</button>` : ''}
                             <button onclick="ui.quotation_v2.save(true)" class="px-6 py-2 bg-slate-50 border border-slate-200 text-slate-600 rounded-lg text-xs font-black uppercase tracking-wider hover:bg-slate-100 transition-all">Save as Draft</button>
                             <button onclick="ui.quotation_v2.save(false, true)" class="px-6 py-2 bg-slate-50 border border-slate-200 text-slate-600 rounded-lg text-xs font-black uppercase tracking-wider hover:bg-slate-100 transition-all">Save and Print</button>
                             <button onclick="ui.quotation_v2.save(false)" class="px-8 py-2 bg-blue-600 text-white rounded-lg text-xs font-black uppercase tracking-wider hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/30 flex items-center gap-2">
@@ -3684,9 +4004,10 @@ try {
                         gstr1.exp.reduce((sum, inv) => sum + (inv.subtotal * (inv.exchange_rate || 1)), 0);
 
                     const totalTax =
-                        gstr1.b2b.reduce((sum, inv) => sum + ((inv.total_amount - inv.subtotal) * (inv.exchange_rate || 1)), 0) +
-                        gstr1.b2cl.reduce((sum, inv) => sum + ((inv.total_amount - inv.subtotal) * (inv.exchange_rate || 1)), 0) +
-                        gstr1.b2cs.reduce((sum, entry) => sum + entry.igst + entry.cgst + entry.sgst, 0);
+                        gstr1.b2b.reduce((sum, inv) => sum + ((inv.total_amount - inv.subtotal - (inv.bank_charges || 0)) * (inv.exchange_rate || 1)), 0) +
+                        gstr1.b2cl.reduce((sum, inv) => sum + ((inv.total_amount - inv.subtotal - (inv.bank_charges || 0)) * (inv.exchange_rate || 1)), 0) +
+                        gstr1.b2cs.reduce((sum, entry) => sum + entry.igst + entry.cgst + entry.sgst, 0) +
+                        gstr1.exp.reduce((sum, inv) => sum + ((inv.total_amount - inv.subtotal - (inv.bank_charges || 0)) * (inv.exchange_rate || 1)), 0);
 
                     root.innerHTML = `
                         <div class="modal-content p-0 rounded-3xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden animate-slide-up bg-white">
@@ -3970,7 +4291,7 @@ try {
         },
         sidebar: {
             toggle: (id) => {
-                const content = document.getElementById(`dropdown - ${id} `);
+                const content = document.getElementById(`dropdown-${id}`);
                 const trigger = content.previousElementSibling;
                 content.classList.toggle('active');
                 trigger.classList.toggle('active');
@@ -4275,11 +4596,12 @@ try {
                     }
 
                     // Aggregate B2CS by state and rate
+                    // Aggregate B2CS by state and rate
                     const b2csAggregated = {};
                     b2cs.forEach(inv => {
                         const exRate = inv.exchange_rate || 1.0;
                         const taxable = inv.subtotal * exRate;
-                        const tax = (inv.total_amount - inv.subtotal) * exRate;
+                        const tax = (inv.total_amount - inv.subtotal - (inv.bank_charges || 0)) * exRate;
                         const custState = inv.customers?.state || 'Unregistered';
                         const taxRate = taxable > 0 ? (tax / taxable * 100).toFixed(2) : "0.00";
                         const key = `${custState}_${taxRate} `;
@@ -4356,9 +4678,10 @@ try {
                     data.b2cl.reduce((sum, inv) => sum + (inv.subtotal * (inv.exchange_rate || 1)), 0) +
                     data.b2cs.reduce((sum, entry) => sum + entry.taxable, 0) +
                     data.exp.reduce((sum, inv) => sum + (inv.subtotal * (inv.exchange_rate || 1)), 0)]);
-                ws_data.push(['Total Tax', data.b2b.reduce((sum, inv) => sum + ((inv.total_amount - inv.subtotal) * (inv.exchange_rate || 1)), 0) +
-                    data.b2cl.reduce((sum, inv) => sum + ((inv.total_amount - inv.subtotal) * (inv.exchange_rate || 1)), 0) +
-                    data.b2cs.reduce((sum, entry) => sum + entry.igst + entry.cgst + entry.sgst, 0)]);
+                ws_data.push(['Total Tax', data.b2b.reduce((sum, inv) => sum + ((inv.total_amount - inv.subtotal - (inv.bank_charges || 0)) * (inv.exchange_rate || 1)), 0) +
+                    data.b2cl.reduce((sum, inv) => sum + ((inv.total_amount - inv.subtotal - (inv.bank_charges || 0)) * (inv.exchange_rate || 1)), 0) +
+                    data.b2cs.reduce((sum, entry) => sum + entry.igst + entry.cgst + entry.sgst, 0) +
+                    data.exp.reduce((sum, inv) => sum + ((inv.total_amount - inv.subtotal - (inv.bank_charges || 0)) * (inv.exchange_rate || 1)), 0)]);
                 ws_data.push([]);
 
                 // ===== B2B Invoices Section =====
@@ -4470,12 +4793,11 @@ try {
 
                 // ===== HSN Summary Section - Domestic =====
                 ws_data.push(['Section 12 - HSN Summary (Domestic)']);
-                ws_data.push(['HSN/SAC', 'Description', 'UQC', 'Quantity', 'Taxable Value', 'IGST', 'CGST', 'SGST', 'Total GST']);
+                ws_data.push(['HSN/SAC', 'UQC', 'Quantity', 'Taxable Value', 'IGST', 'CGST', 'SGST', 'Total GST']);
 
                 data.hsnDomestic.forEach(h => {
                     ws_data.push([
                         h.code,
-                        h.desc,
                         'NOS',
                         h.qty,
                         h.taxable,
@@ -4491,12 +4813,11 @@ try {
 
                 // ===== HSN Summary Section - Exports =====
                 ws_data.push(['Section 12 - HSN Summary (Exports)']);
-                ws_data.push(['HSN/SAC', 'Description', 'UQC', 'Quantity', 'Taxable Value', 'IGST', 'CGST', 'SGST', 'Total GST']);
+                ws_data.push(['HSN/SAC', 'UQC', 'Quantity', 'Taxable Value', 'IGST', 'CGST', 'SGST', 'Total GST']);
 
                 data.hsnExport.forEach(h => {
                     ws_data.push([
                         h.code,
-                        h.desc,
                         'NOS',
                         h.qty,
                         h.taxable,
@@ -5821,7 +6142,7 @@ try {
                 document.getElementById('qtn-tax-rows').innerHTML = taxRowsContent;
             },
 
-            save: async (isDraft = false, print = false) => {
+            save: async (isDraft = false, print = false, isRevision = false) => {
                 const customerId = document.getElementById('qtn-customer').value;
                 if (!customerId) return alert('Please select a customer');
 
@@ -5864,21 +6185,9 @@ try {
                     };
 
                     let qtnData;
-                    const isExistingDraft = ui.quotation_v2.activeId && ui.quotation_v2.activeStatus === 'Draft';
-
-                    if (isExistingDraft) {
-                        const { data, error } = await supabaseClient
-                            .from('quotations')
-                            .update(quotation)
-                            .eq('id', ui.quotation_v2.activeId)
-                            .select()
-                            .single();
-                        if (error) throw error;
-                        qtnData = data;
-                        await supabaseClient.from('quotation_items').delete().eq('quotation_id', qtnData.id);
-                    } else if (ui.quotation_v2.activeId) {
+                    if (isRevision) {
                         // Create Revision logic
-                        const baseNo = quotation.quotation_no;
+                        const baseNo = quotation.quotation_no.split('-R')[0];
                         const { data: existingDocs } = await supabaseClient
                             .from('quotations')
                             .select('quotation_no')
@@ -5893,7 +6202,7 @@ try {
                             if (revMatch) {
                                 nextRev = parseInt(revMatch[1]) + 1;
                             }
-                            quotation.quotation_no = `${baseNo.split('-R')[0]}-R${nextRev}`;
+                            quotation.quotation_no = `${baseNo}-R${nextRev}`;
                         } else {
                             quotation.quotation_no = `${baseNo}-R1`;
                         }
@@ -5901,6 +6210,16 @@ try {
                         const { data, error } = await supabaseClient.from('quotations').insert(quotation).select().single();
                         if (error) throw error;
                         qtnData = data;
+                    } else if (ui.quotation_v2.activeId) {
+                        const { data, error } = await supabaseClient
+                            .from('quotations')
+                            .update(quotation)
+                            .eq('id', ui.quotation_v2.activeId)
+                            .select()
+                            .single();
+                        if (error) throw error;
+                        qtnData = data;
+                        await supabaseClient.from('quotation_items').delete().eq('quotation_id', qtnData.id);
                     } else {
                         const { data, error } = await supabaseClient.from('quotations').insert(quotation).select().single();
                         if (error) throw error;
@@ -5927,7 +6246,7 @@ try {
 
                     ui.modal.close();
                     await api.docs.fetch('quotations');
-                    api.notifications.show(`Quotation ${isDraft ? 'Draft ' : (isExistingDraft ? 'Finalized ' : '')}Saved Successfully`);
+                    api.notifications.show(`Quotation ${isDraft ? 'Draft ' : (isRevision ? 'Revision ' : (ui.quotation_v2.activeId ? 'Updated ' : ''))}Saved Successfully`);
 
                     if (print) {
                         api.docs.generatePDF('quotations', qtnData.id, ui.quotation_v2.includeSignature);
@@ -6316,7 +6635,7 @@ try {
                     };
 
                     // Handle File Inputs (Convert to Base64)
-                    const fileFields = ['company_logo', 'signature', 'stamp'];
+                    const fileFields = ['company_logo', 'signature', 'stamp', 'revenue_stamp'];
                     for (const field of fileFields) {
                         const file = formData.get(field);
                         if (file && file.size > 0) {
@@ -6762,6 +7081,7 @@ try {
                 const results = {
                     sales: { taxable: 0, tax: 0, b2b: 0, b2cl: 0, b2cs: 0, exp: 0 },
                     purchases: { taxable: 0, tax: 0 },
+                    regional: {}, // State-wise aggregation
                     hsn: {} // table 12
                 };
 
@@ -6783,9 +7103,11 @@ try {
                     .in('invoice_id', invIds);
 
                 state.invoices.forEach(inv => {
+                    if (!isWithinFY(inv.date, state.fy)) return;
                     const exRate = inv.exchange_rate || 1.0;
                     const taxable = inv.subtotal * exRate;
-                    const tax = (inv.total_amount - inv.subtotal) * exRate;
+                    // Tax = (Total - Subtotal - BankCharges) * ExRate
+                    const tax = (inv.total_amount - inv.subtotal - (inv.bank_charges || 0)) * exRate;
                     const totalINR = inv.total_amount * exRate;
 
                     results.sales.taxable += taxable;
@@ -6809,6 +7131,14 @@ try {
                             results.sales.b2cs += taxable;
                         }
                     }
+
+                    // Regional aggregation
+                    const stateName = inv.customers?.state || 'Unknown';
+                    if (!results.regional[stateName]) {
+                        results.regional[stateName] = { revenue: 0, count: 0 };
+                    }
+                    results.regional[stateName].revenue += totalINR;
+                    results.regional[stateName].count += 1;
                 });
 
                 // HSN Aggregation
@@ -6839,8 +7169,12 @@ try {
                     });
                 }
 
-                results.purchases.tax = state.purchases.reduce((sum, pur) => sum + (pur.tax_amount || 0), 0);
-                results.purchases.taxable = state.purchases.reduce((sum, pur) => sum + (pur.subtotal || 0), 0);
+                results.purchases.tax = state.purchases
+                    .filter(pur => isWithinFY(pur.date, state.fy))
+                    .reduce((sum, pur) => sum + (pur.tax_amount || 0), 0);
+                results.purchases.taxable = state.purchases
+                    .filter(pur => isWithinFY(pur.date, state.fy))
+                    .reduce((sum, pur) => sum + (pur.subtotal || 0), 0);
 
                 state.reports = results;
                 render();
@@ -7053,7 +7387,7 @@ try {
                     alert('Delete failed: ' + err.message);
                 }
             },
-            generatePDF: async (type, id, includeSignature = true) => {
+            generatePDF: async (type, id, includeSignature = true, includeRevenueStamp = true, includeCompanyStamp = true) => {
                 try {
                     const tableMap = {
                         quotations: 'quotations', proforma: 'proforma_invoices', challans: 'delivery_challans',
@@ -7597,12 +7931,45 @@ try {
 
 
 
-                    // Signature (Right)
+                    // Logic for elements based on type
+                    const isInvoice = type === 'invoices';
+                    const showSignature = !isInvoice && includeSignature;
+                    const showRevenueStamp = isInvoice && includeRevenueStamp;
+                    const showCompanyStamp = includeCompanyStamp;
+
+                    // Signature Line (Right)
                     pdf.setFontSize(8);
                     pdf.setFont('Poppins', 'bold');
-                    pdf.text(`For ${settings.company_name || 'LaGa Systems'}`, pageWidth - margin - 2, finalY + 8, { align: 'right' });
+                    const companyName = settings.company_name || 'LaGa Systems';
+                    // Ensure "M/s" is present if not already there
+                    const displayName = companyName.startsWith('M/s') ? companyName : `M/s ${companyName}`;
+                    pdf.text(`For ${displayName}`, pageWidth - margin - 2, finalY + 8, { align: 'right' });
 
-                    if (includeSignature) {
+                    // Company Stamp (Common for all, placed to left of signature block)
+                    if (settings.stamp && showCompanyStamp) {
+                        try {
+                            const stumpX = pageWidth - margin - 70; // Left of signature
+                            const stumpY = finalY + 10;
+                            pdf.addImage(settings.stamp, 'PNG', stumpX, stumpY, 25, 25);
+                        } catch (e) {
+                            console.warn('Company stamp add failed', e);
+                        }
+                    }
+
+                    // Revenue Stamp (Tax Invoices Only)
+                    if (settings.revenue_stamp && showRevenueStamp) {
+                        try {
+                            // Moved to signature position
+                            const revX = pageWidth - margin - 35;
+                            const revY = finalY + 12;
+                            pdf.addImage(settings.revenue_stamp, 'PNG', revX, revY, 20, 20);
+                        } catch (e) {
+                            console.warn('Revenue stamp add failed', e);
+                        }
+                    }
+
+                    // Authorized Signature (Quotations & Pro Forma Only)
+                    if (showSignature) {
                         const sigX = pageWidth - margin - 45;
                         const sigY = finalY + 12;
                         const sigW = 40;
@@ -7665,10 +8032,23 @@ try {
                     header.innerHTML = `
                                                     <h3 style="margin: 0; font-size: 18px; font-weight: 600;">${titleMap[type]} - ${docNumber}</h3>
                                                     <div style="display: flex; gap: 12px; align-items: center;">
+                                                        ${!isInvoice ? `
                                                         <label style="display: flex; align-items: center; gap: 6px; font-size: 14px; cursor: pointer;">
                                                             <input type="checkbox" id="signature-toggle" ${includeSignature ? 'checked' : ''} style="cursor: pointer; width: 16px; height: 16px;">
-                                                            <span style="font-weight: 500;">Include Signature</span>
+                                                            <span style="font-weight: 500;">Signature</span>
+                                                        </label>` : ''}
+                                                        
+                                                        ${isInvoice ? `
+                                                        <label style="display: flex; align-items: center; gap: 6px; font-size: 14px; cursor: pointer;">
+                                                            <input type="checkbox" id="revenue-toggle" ${includeRevenueStamp ? 'checked' : ''} style="cursor: pointer; width: 16px; height: 16px;">
+                                                            <span style="font-weight: 500;">Revenue Stamp</span>
+                                                        </label>` : ''}
+
+                                                        <label style="display: flex; align-items: center; gap: 6px; font-size: 14px; cursor: pointer;">
+                                                            <input type="checkbox" id="company-stamp-toggle" ${includeCompanyStamp ? 'checked' : ''} style="cursor: pointer; width: 16px; height: 16px;">
+                                                            <span style="font-weight: 500;">Company Stamp</span>
                                                         </label>
+
                                                         <a href="${pdfUrl}" download="${filename}" style="padding: 8px 16px; background: #0066cc; color: white; text-decoration: none; border-radius: 6px; font-size: 14px; font-weight: 600;">Download PDF</a>
                                                         <button onclick="this.closest('[style*=fixed]').remove(); URL.revokeObjectURL('${pdfUrl}')" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #6c757d;">&times;</button>
                                                     </div>
@@ -7683,15 +8063,28 @@ try {
                     modal.appendChild(modalContent);
                     document.body.appendChild(modal);
 
-                    // Add signature toggle event listener
+                    // Add event listeners
                     const signatureToggle = header.querySelector('#signature-toggle');
                     if (signatureToggle) {
                         signatureToggle.addEventListener('change', async (e) => {
-                            // Remove current modal
-                            modal.remove();
-                            URL.revokeObjectURL(pdfUrl);
-                            // Regenerate PDF with new signature setting
-                            await api.docs.generatePDF(type, id, e.target.checked);
+                            modal.remove(); URL.revokeObjectURL(pdfUrl);
+                            await api.docs.generatePDF(type, id, e.target.checked, includeRevenueStamp, includeCompanyStamp);
+                        });
+                    }
+
+                    const revenueToggle = header.querySelector('#revenue-toggle');
+                    if (revenueToggle) {
+                        revenueToggle.addEventListener('change', async (e) => {
+                            modal.remove(); URL.revokeObjectURL(pdfUrl);
+                            await api.docs.generatePDF(type, id, includeSignature, e.target.checked, includeCompanyStamp);
+                        });
+                    }
+
+                    const companyStampToggle = header.querySelector('#company-stamp-toggle');
+                    if (companyStampToggle) {
+                        companyStampToggle.addEventListener('change', async (e) => {
+                            modal.remove(); URL.revokeObjectURL(pdfUrl);
+                            await api.docs.generatePDF(type, id, includeSignature, includeRevenueStamp, e.target.checked);
                         });
                     }
 

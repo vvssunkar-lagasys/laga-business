@@ -11,6 +11,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="./fonts.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap"
@@ -63,64 +64,223 @@
         <!-- Main Workspace (Hidden) -->
         <div id="main-root" class="hidden flex h-screen overflow-hidden">
             <!-- Sidebar -->
-            <aside class="w-64 bg-slate-900 text-slate-400 flex flex-col">
-                <div class="p-6">
-                    <h2 class="text-xl font-bold text-white">LaGa Suite</h2>
-                    <p class="text-blue-400 font-bold uppercase tracking-widest mt-1">Enterprise Edition</p>
+            <aside
+                class="w-72 bg-[#0f172a] text-slate-400 flex flex-col border-r border-[#1e293b] relative z-20 transition-all duration-300 ease-in-out">
+                <!-- Logo Area -->
+                <div class="h-20 flex items-center px-6 border-b border-[#1e293b]">
+                    <div class="flex items-center gap-3">
+                        <div
+                            class="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
+                            <span class="text-white font-bold text-lg">L</span>
+                        </div>
+                        <div>
+                            <h2 class="text-white font-bold leading-none tracking-tight">LaGa Suite</h2>
+                            <p class="text-[10px] uppercase tracking-[0.15em] text-blue-400 font-bold mt-1">Enterprise
+                            </p>
+                        </div>
+                    </div>
                 </div>
-                <nav class="flex-1 flex flex-col px-4 py-4 space-y-1 overflow-y-auto">
-                    <a href="#dashboard" class="nav-link active">Dashboard</a>
-                    <a href="#products" class="nav-link">Products</a>
-                    <a href="#customers" class="nav-link">Customers</a>
 
-                    <div class="mt-4">
-                        <div class="nav-dropdown-trigger"
+                <!-- Navigation -->
+                <nav class="flex-1 flex flex-col px-4 py-6 space-y-1 overflow-y-auto custom-scrollbar">
+
+                    <!-- Main Menu -->
+                    <div class="px-2 mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Main Menu</div>
+
+                    <a href="#dashboard" class="nav-link active group">
+                        <span class="nav-icon">
+                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                    d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                            </svg>
+                        </span>
+                        <span>Dashboard</span>
+                    </a>
+
+                    <a href="#products" class="nav-link group">
+                        <span class="nav-icon">
+                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                    d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                            </svg>
+                        </span>
+                        <span>Products & Services</span>
+                    </a>
+
+                    <a href="#customers" class="nav-link group">
+                        <span class="nav-icon">
+                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                    d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                            </svg>
+                        </span>
+                        <span>Customers</span>
+                    </a>
+
+                    <!-- Sales Module -->
+                    <div class="mt-6">
+                        <div class="nav-dropdown-trigger group"
                             onclick="ui.sidebar.toggle('sales'); location.hash='#invoices'">
-                            <span>Sales</span>
+                            <div class="flex items-center gap-3">
+                                <span class="nav-icon">
+                                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                            d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                </span>
+                                <span>Sales Pipeline</span>
+                            </div>
+                            <svg class="w-4 h-4 chevron text-slate-500 transition-transform duration-200" fill="none"
+                                viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M19 9l-7 7-7-7" />
+                            </svg>
                         </div>
                         <div id="dropdown-sales" class="nav-dropdown-content active">
-                            <a href="#invoices" class="nav-link">Invoices</a>
-                            <a href="#credit_notes" class="nav-link">Credit Notes</a>
+                            <div class="relative border-l border-[#1e293b] ml-6 pl-4 space-y-1 mt-1">
+                                <a href="#invoices" class="nav-sub-link">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-current opacity-40"></span>
+                                    Invoices
+                                </a>
+                                <a href="#credit_notes" class="nav-sub-link">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-current opacity-40"></span>
+                                    Credit Notes
+                                </a>
+                            </div>
                         </div>
                     </div>
 
-                    <div class="mt-2">
-                        <div class="nav-dropdown-trigger" onclick="ui.sidebar.toggle('purchases')">
-                            <span>Purchases</span>
-
+                    <!-- Purchases Module -->
+                    <div class="mt-1">
+                        <div class="nav-dropdown-trigger group" onclick="ui.sidebar.toggle('purchases')">
+                            <div class="flex items-center gap-3">
+                                <span class="nav-icon">
+                                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                            d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                                    </svg>
+                                </span>
+                                <span>Procurement</span>
+                            </div>
+                            <svg class="w-4 h-4 chevron text-slate-500 transition-transform duration-200" fill="none"
+                                viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M19 9l-7 7-7-7" />
+                            </svg>
                         </div>
                         <div id="dropdown-purchases" class="nav-dropdown-content active">
-                            <a href="#purchases" class="nav-link">Purchases</a>
-                            <a href="#purchase_orders" class="nav-link">Purchase Orders</a>
-                            <a href="#debit_notes" class="nav-link">Debit Notes</a>
+                            <div class="relative border-l border-[#1e293b] ml-6 pl-4 space-y-1 mt-1">
+                                <a href="#purchases" class="nav-sub-link">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-current opacity-40"></span>
+                                    Bills
+                                </a>
+                                <a href="#purchase_orders" class="nav-sub-link">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-current opacity-40"></span>
+                                    Purchase Orders
+                                </a>
+                                <a href="#debit_notes" class="nav-sub-link">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-current opacity-40"></span>
+                                    Debit Notes
+                                </a>
+                            </div>
                         </div>
                     </div>
 
-                    <div class="mt-2">
-                        <div class="nav-dropdown-trigger" onclick="ui.sidebar.toggle('quotations-plus')">
-                            <span>Quotations</span>
-
+                    <!-- Quotations Module -->
+                    <div class="mt-1">
+                        <div class="nav-dropdown-trigger group" onclick="ui.sidebar.toggle('quotations-plus')">
+                            <div class="flex items-center gap-3">
+                                <span class="nav-icon">
+                                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                    </svg>
+                                </span>
+                                <span>Quotations</span>
+                            </div>
+                            <svg class="w-4 h-4 chevron text-slate-500 transition-transform duration-200" fill="none"
+                                viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M19 9l-7 7-7-7" />
+                            </svg>
                         </div>
                         <div id="dropdown-quotations-plus" class="nav-dropdown-content active">
-                            <a href="#quotations" class="nav-link">Quotations</a>
-                            <a href="#proforma" class="nav-link">Pro Forma Invoices</a>
-                            <a href="#challans" class="nav-link">Delivery Challans</a>
+                            <div class="relative border-l border-[#1e293b] ml-6 pl-4 space-y-1 mt-1">
+                                <a href="#quotations" class="nav-sub-link">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-current opacity-40"></span>
+                                    Estimates
+                                </a>
+                                <a href="#proforma" class="nav-sub-link">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-current opacity-40"></span>
+                                    Pro Forma
+                                </a>
+                                <a href="#challans" class="nav-sub-link">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-current opacity-40"></span>
+                                    Challans
+                                </a>
+                            </div>
                         </div>
                     </div>
 
-                    <div class="font-bold text-slate-500 uppercase tracking-widest px-4 py-2 mt-4">
-                        Accounting</div>
-                    <a href="#reports" class="nav-link">GST Reports</a>
-                    <a href="#licenses" class="nav-link">Licenses</a>
+                    <div class="my-4 border-t border-[#1e293b]"></div>
+
+                    <!-- Accounting & System -->
+                    <div class="px-2 mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Finance &
+                        Controls</div>
+
+                    <a href="#reports" class="nav-link group">
+                        <span class="nav-icon">
+                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                    d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                        </span>
+                        <span>GST Reports</span>
+                    </a>
+
+                    <a href="#licenses" class="nav-link group">
+                        <span class="nav-icon">
+                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                    d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                            </svg>
+                        </span>
+                        <span>Licenses</span>
+                    </a>
+
+                    <a href="#settings" class="nav-link group">
+                        <span class="nav-icon">
+                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                    d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                        </span>
+                        <span>Settings</span>
+                    </a>
                 </nav>
-                <div class="px-4 py-2 mt-2">
-                    <div class="font-bold text-slate-500 uppercase tracking-widest px-2 mb-2">System</div>
-                    <a href="#settings" class="nav-link">Settings</a>
-                </div>
-                <div class="p-4 border-t border-slate-800 bg-slate-900/50">
-                    <p id="user-display" class="text-sm font-medium text-white truncate px-2">user@laga.com</p>
-                    <button id="logout-btn"
-                        class="mt-2 text-xs text-slate-500 hover:text-white px-2 transition-colors">Sign Out</button>
+
+                <!-- User Profile -->
+                <div class="p-4 border-t border-[#1e293b] bg-[#0b1120]">
+                    <div class="flex items-center gap-3">
+                        <div
+                            class="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-xs font-bold text-slate-300">
+                            U
+                        </div>
+                        <div class="flex-1 overflow-hidden">
+                            <p id="user-display" class="text-sm font-medium text-slate-200 truncate">user@laga.com</p>
+                            <p class="text-[10px] text-slate-500">Administrator</p>
+                        </div>
+                        <button id="logout-btn"
+                            class="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+                            title="Sign Out">
+                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                            </svg>
+                        </button>
+                    </div>
                 </div>
             </aside>
 
