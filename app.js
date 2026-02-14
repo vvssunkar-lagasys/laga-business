@@ -1500,6 +1500,12 @@ try {
                                         </td>
                                         <td class="p-4">
                                             <div class="flex items-center justify-center gap-1">
+                                                <button onclick="api.docs.convertQuotationToProForma('${q.id}')" class="p-2 rounded-lg hover:bg-purple-50 text-purple-500 transition-colors" title="Convert to Pro Forma Invoice">
+                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                                </button>
+                                                <button onclick="api.docs.convertQuotationToInvoice('${q.id}')" class="p-2 rounded-lg hover:bg-emerald-50 text-emerald-500 transition-colors" title="Convert to Tax Invoice">
+                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path></svg>
+                                                </button>
                                                 <button onclick="ui.quotations.edit('${q.id}')" class="p-2 rounded-lg hover:bg-blue-50 text-blue-500 transition-colors" title="Edit / Create Revision">
                                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
                                                 </button>
@@ -3998,16 +4004,16 @@ try {
                 } else if (type === 'gstr1-preview') {
                     const gstr1 = data;
                     const totalTaxable =
-                        gstr1.b2b.reduce((sum, inv) => sum + (inv.subtotal * (inv.exchange_rate || 1)), 0) +
-                        gstr1.b2cl.reduce((sum, inv) => sum + (inv.subtotal * (inv.exchange_rate || 1)), 0) +
+                        gstr1.b2b.reduce((sum, inv) => sum + ((inv.subtotal + (inv.bank_charges || 0)) * (inv.exchange_rate || 1)), 0) +
+                        gstr1.b2cl.reduce((sum, inv) => sum + ((inv.subtotal + (inv.bank_charges || 0)) * (inv.exchange_rate || 1)), 0) +
                         gstr1.b2cs.reduce((sum, entry) => sum + entry.taxable, 0) +
-                        gstr1.exp.reduce((sum, inv) => sum + (inv.subtotal * (inv.exchange_rate || 1)), 0);
+                        gstr1.exp.reduce((sum, inv) => sum + ((inv.subtotal + (inv.bank_charges || 0)) * (inv.exchange_rate || 1)), 0);
 
                     const totalTax =
-                        gstr1.b2b.reduce((sum, inv) => sum + ((inv.total_amount - inv.subtotal - (inv.bank_charges || 0)) * (inv.exchange_rate || 1)), 0) +
-                        gstr1.b2cl.reduce((sum, inv) => sum + ((inv.total_amount - inv.subtotal - (inv.bank_charges || 0)) * (inv.exchange_rate || 1)), 0) +
+                        gstr1.b2b.reduce((sum, inv) => sum + ((inv.total_amount - (inv.subtotal + (inv.bank_charges || 0))) * (inv.exchange_rate || 1)), 0) +
+                        gstr1.b2cl.reduce((sum, inv) => sum + ((inv.total_amount - (inv.subtotal + (inv.bank_charges || 0))) * (inv.exchange_rate || 1)), 0) +
                         gstr1.b2cs.reduce((sum, entry) => sum + entry.igst + entry.cgst + entry.sgst, 0) +
-                        gstr1.exp.reduce((sum, inv) => sum + ((inv.total_amount - inv.subtotal - (inv.bank_charges || 0)) * (inv.exchange_rate || 1)), 0);
+                        gstr1.exp.reduce((sum, inv) => sum + ((inv.total_amount - (inv.subtotal + (inv.bank_charges || 0))) * (inv.exchange_rate || 1)), 0);
 
                     root.innerHTML = `
                         <div class="modal-content p-0 rounded-3xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden animate-slide-up bg-white">
@@ -4600,8 +4606,8 @@ try {
                     const b2csAggregated = {};
                     b2cs.forEach(inv => {
                         const exRate = inv.exchange_rate || 1.0;
-                        const taxable = inv.subtotal * exRate;
-                        const tax = (inv.total_amount - inv.subtotal - (inv.bank_charges || 0)) * exRate;
+                        const taxable = (inv.subtotal + (inv.bank_charges || 0)) * exRate;
+                        const tax = (inv.total_amount - taxable) * exRate;
                         const custState = inv.customers?.state || 'Unregistered';
                         const taxRate = taxable > 0 ? (tax / taxable * 100).toFixed(2) : "0.00";
                         const key = `${custState}_${taxRate} `;
@@ -4673,15 +4679,14 @@ try {
                 // ===== GSTR-1 Summary Section =====
                 ws_data.push(['GSTR-1 Summary']);
                 ws_data.push([]);
-                ws_data.push(['Period', data.period]);
-                ws_data.push(['Total Taxable Value', data.b2b.reduce((sum, inv) => sum + (inv.subtotal * (inv.exchange_rate || 1)), 0) +
-                    data.b2cl.reduce((sum, inv) => sum + (inv.subtotal * (inv.exchange_rate || 1)), 0) +
+                ws_data.push(['Total Taxable Value', data.b2b.reduce((sum, inv) => sum + ((inv.subtotal + (inv.bank_charges || 0)) * (inv.exchange_rate || 1)), 0) +
+                    data.b2cl.reduce((sum, inv) => sum + ((inv.subtotal + (inv.bank_charges || 0)) * (inv.exchange_rate || 1)), 0) +
                     data.b2cs.reduce((sum, entry) => sum + entry.taxable, 0) +
-                    data.exp.reduce((sum, inv) => sum + (inv.subtotal * (inv.exchange_rate || 1)), 0)]);
-                ws_data.push(['Total Tax', data.b2b.reduce((sum, inv) => sum + ((inv.total_amount - inv.subtotal - (inv.bank_charges || 0)) * (inv.exchange_rate || 1)), 0) +
-                    data.b2cl.reduce((sum, inv) => sum + ((inv.total_amount - inv.subtotal - (inv.bank_charges || 0)) * (inv.exchange_rate || 1)), 0) +
+                    data.exp.reduce((sum, inv) => sum + ((inv.subtotal + (inv.bank_charges || 0)) * (inv.exchange_rate || 1)), 0)]);
+                ws_data.push(['Total Tax', data.b2b.reduce((sum, inv) => sum + ((inv.total_amount - (inv.subtotal + (inv.bank_charges || 0))) * (inv.exchange_rate || 1)), 0) +
+                    data.b2cl.reduce((sum, inv) => sum + ((inv.total_amount - (inv.subtotal + (inv.bank_charges || 0))) * (inv.exchange_rate || 1)), 0) +
                     data.b2cs.reduce((sum, entry) => sum + entry.igst + entry.cgst + entry.sgst, 0) +
-                    data.exp.reduce((sum, inv) => sum + ((inv.total_amount - inv.subtotal - (inv.bank_charges || 0)) * (inv.exchange_rate || 1)), 0)]);
+                    data.exp.reduce((sum, inv) => sum + ((inv.total_amount - (inv.subtotal + (inv.bank_charges || 0))) * (inv.exchange_rate || 1)), 0)]);
                 ws_data.push([]);
 
                 // ===== B2B Invoices Section =====
@@ -4699,8 +4704,8 @@ try {
 
                 data.b2b.forEach(inv => {
                     const exRate = inv.exchange_rate || 1.0;
-                    const taxable = inv.subtotal * exRate;
-                    const tax = (inv.total_amount - inv.subtotal) * exRate;
+                    const taxable = (inv.subtotal + (inv.bank_charges || 0)) * exRate;
+                    const tax = (inv.total_amount - taxable) * exRate;
                     const custState = String(inv.customers?.state || '');
                     const custStateCode = custState.substring(0, 2);
                     const isInterstate = myStateCode && custStateCode && myStateCode !== custStateCode;
@@ -4726,8 +4731,8 @@ try {
                 // ===== Summary: B2B (Aggregated) =====
                 ws_data.push(['Summary - B2B (Aggregated)']);
                 ws_data.push(['Total Invoices', data.b2b.length]);
-                ws_data.push(['Total Taxable Value', data.b2b.reduce((sum, inv) => sum + (inv.subtotal * (inv.exchange_rate || 1)), 0)]);
-                ws_data.push(['Total Tax', data.b2b.reduce((sum, inv) => sum + ((inv.total_amount - inv.subtotal) * (inv.exchange_rate || 1)), 0)]);
+                ws_data.push(['Total Taxable Value', data.b2b.reduce((sum, inv) => sum + ((inv.subtotal + (inv.bank_charges || 0)) * (inv.exchange_rate || 1)), 0)]);
+                ws_data.push(['Total Tax', data.b2b.reduce((sum, inv) => sum + ((inv.total_amount - (inv.subtotal + (inv.bank_charges || 0))) * (inv.exchange_rate || 1)), 0)]);
                 ws_data.push([]);
                 ws_data.push([]);
 
@@ -4737,8 +4742,8 @@ try {
 
                 data.b2cl.forEach(inv => {
                     const exRate = inv.exchange_rate || 1.0;
-                    const taxable = inv.subtotal * exRate;
-                    const tax = (inv.total_amount - inv.subtotal) * exRate;
+                    const taxable = (inv.subtotal + (inv.bank_charges || 0)) * exRate;
+                    const tax = (inv.total_amount - taxable) * exRate;
 
                     ws_data.push([
                         inv.invoice_no,
@@ -4781,8 +4786,8 @@ try {
                     ws_data.push([
                         inv.invoice_no,
                         inv.date,
-                        inv.total_amount * exRate,
                         inv.subtotal * exRate,
+                        (inv.subtotal + (inv.bank_charges || 0)) * exRate,
                         '',
                         ''
                     ]);
@@ -7389,6 +7394,147 @@ try {
                     api.notifications.show('Failed to convert PFI: ' + err.message, 'error');
                 }
             },
+            convertQuotationToProForma: async (quotationId) => {
+                if (!confirm('Convert this Quotation to a Pro Forma Invoice?')) return;
+
+                try {
+                    // 1. Fetch Quotation and its items
+                    const { data: quotation, error: qtnError } = await supabaseClient
+                        .from('quotations')
+                        .select('*, quotation_items(*, products(name, hsn))')
+                        .eq('id', quotationId)
+                        .single();
+
+                    if (qtnError) throw qtnError;
+
+                    // 2. Open Pro Forma Modal
+                    ui.modal.open('proforma-new');
+
+                    // 3. Mark source and active state
+                    ui.proforma_v2.activeId = null;
+
+                    // 4. Map Quotation fields to Pro Forma form
+                    // Wait for modal to render
+                    setTimeout(() => {
+                        document.getElementById('pfi-customer').value = quotation.customer_id;
+                        const cust = state.customers.find(c => c.id === quotation.customer_id);
+                        if (cust) document.getElementById('pfi-customer-search').value = cust.name;
+
+                        document.getElementById('pfi-type').value = quotation.type || 'Regular';
+                        if (document.getElementById('pfi-currency')) document.getElementById('pfi-currency').value = quotation.currency || 'INR';
+                        document.getElementById('pfi-bank').value = quotation.bank_id || 'inr';
+                        document.getElementById('pfi-payment-terms').value = quotation.payment_terms || '';
+                        document.getElementById('pfi-delivery-time').value = quotation.delivery_time || '';
+                        document.getElementById('pfi-delivery-mode').value = quotation.delivery_mode || '';
+                        document.getElementById('pfi-terms').value = quotation.terms || '';
+                        if (document.getElementById('pfi-bank-charges')) document.getElementById('pfi-bank-charges').value = quotation.bank_charges || 0;
+
+                        // Custom Fields
+                        if (quotation.metadata?.custom_fields && Array.isArray(quotation.metadata.custom_fields)) {
+                            quotation.metadata.custom_fields.forEach(cf => ui.proforma_v2.addCustomField(cf.name, cf.value));
+                        }
+
+                        // Line Items
+                        const container = document.getElementById('pfi-line-items');
+                        container.innerHTML = '';
+                        if (quotation.quotation_items && quotation.quotation_items.length > 0) {
+                            quotation.quotation_items.forEach(item => {
+                                ui.proforma_v2.addItem();
+                                const lastRow = container.lastElementChild;
+                                if (lastRow) {
+                                    const prodSelectInput = lastRow.querySelector('.product-search-input');
+                                    const prodIdInput = lastRow.querySelector('.product-id-hidden');
+                                    prodIdInput.value = item.product_id;
+                                    const product = state.products.find(pr => pr.id === item.product_id);
+                                    if (product) prodSelectInput.value = product.name;
+
+                                    lastRow.querySelector('.hsn-input').value = item.hsn_code || '';
+                                    lastRow.querySelector('.qty-input').value = item.qty || 1;
+                                    lastRow.querySelector('.rate-input').value = item.rate || 0;
+                                    lastRow.querySelector('.discount-input').value = item.discount || 0;
+                                }
+                            });
+                        }
+
+                        ui.proforma_v2.toggleExportFields();
+                        ui.proforma_v2.updateCalculations();
+                        ui.proforma_v2.updateDocNo();
+                    }, 500);
+
+                } catch (err) {
+                    console.error('Conversion Error:', err);
+                    api.notifications.show('Failed to convert Quotation to PFI: ' + err.message, 'error');
+                }
+            },
+            convertQuotationToInvoice: async (quotationId) => {
+                if (!confirm('Convert this Quotation to a Tax Invoice?')) return;
+
+                try {
+                    // 1. Fetch Quotation and its items
+                    const { data: quotation, error: qtnError } = await supabaseClient
+                        .from('quotations')
+                        .select('*, quotation_items(*, products(name, hsn))')
+                        .eq('id', quotationId)
+                        .single();
+
+                    if (qtnError) throw qtnError;
+
+                    // 2. Open Invoice Modal
+                    ui.modal.open('invoice');
+
+                    // 3. Mark active state
+                    ui.invoice.activeId = null;
+                    ui.invoice.sourcePfiId = null;
+
+                    // 4. Map Quotation fields to Invoice form
+                    // Wait for modal to render
+                    setTimeout(() => {
+                        document.getElementById('inv-customer').value = quotation.customer_id;
+                        const cust = state.customers.find(c => c.id === quotation.customer_id);
+                        if (cust) document.getElementById('inv-customer-search').value = cust.name;
+
+                        document.getElementById('inv-type').value = quotation.type || 'Regular';
+                        if (document.getElementById('inv-currency')) document.getElementById('inv-currency').value = quotation.currency || 'INR';
+                        if (document.getElementById('inv-exchange-rate')) document.getElementById('inv-exchange-rate').value = '1.00';
+                        document.getElementById('inv-bank').value = quotation.bank_id || 'inr';
+                        document.getElementById('inv-payment-terms').value = quotation.payment_terms || '';
+                        document.getElementById('inv-delivery-time').value = quotation.delivery_time || '';
+                        document.getElementById('inv-delivery-mode').value = quotation.delivery_mode || '';
+                        document.getElementById('inv-notes').value = quotation.terms || '';
+                        if (document.getElementById('inv-bank-charges')) document.getElementById('inv-bank-charges').value = quotation.bank_charges || 0;
+
+                        // Custom Fields
+                        if (quotation.metadata?.custom_fields && Array.isArray(quotation.metadata.custom_fields)) {
+                            quotation.metadata.custom_fields.forEach(cf => ui.invoice.addCustomField(cf.name, cf.value));
+                        }
+
+                        // Line Items
+                        const container = document.getElementById('inv-line-items');
+                        container.innerHTML = '';
+                        if (quotation.quotation_items && quotation.quotation_items.length > 0) {
+                            quotation.quotation_items.forEach(item => {
+                                ui.invoice.addItem({
+                                    product_id: item.product_id,
+                                    product_name: item.products?.name || '',
+                                    hsn: item.hsn_code || item.products?.hsn || '',
+                                    qty: item.qty,
+                                    rate: item.rate,
+                                    discount: item.discount || 0
+                                });
+                            });
+                        }
+
+                        ui.invoice.toggleExportFields();
+                        ui.invoice.updateCalculations();
+                        ui.invoice.updateDocNo();
+                    }, 500);
+
+                } catch (err) {
+                    console.error('Conversion Error:', err);
+                    api.notifications.show('Failed to convert Quotation to Invoice: ' + err.message, 'error');
+                }
+            },
+
             save: async (type) => {
                 const btn = event.target;
                 btn.disabled = true;
