@@ -2199,17 +2199,15 @@ try {
                                 <option value="AquiferTest">
                                 <option value="Visual MODFLOW Flex">
                                 <option value="Hydro GeoAnalyst">
-                                <option value="GW Apps">
-                                <option value="Breeze AERMOD">
-                                <option value="Breeze ROADS">
-                                <option value="Breeze HAZ">
                                 <option value="AustalView">
                                 <option value="CALPUFFView">
-                                <option value="EcoView">
+                                <option value="EcoRiskView">
                                 <option value="WRPLOT View">
                                 <option value="Screen View">
                                 <option value="SLAB View">
-                                <option value="Shoreline View">
+                                <option value="IRAP-h View">
+                                <option value="OriginPro">
+                                <option value="CalRoads View">
                                 </datalist>
                         </div>
                         <div class="grid grid-cols-2 gap-4">
@@ -8394,3 +8392,4 @@ try {
     console.error('CRITICAL STARTUP ERROR:', e);
     alert('CRITICAL STARTUP ERROR: ' + e.message);
 }
+
