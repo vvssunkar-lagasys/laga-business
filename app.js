@@ -2150,10 +2150,16 @@ try {
                         <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-1">Customer Selection</h4>
                         <div>
                             <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1">Customer Name <span class="text-red-500">*</span></label>
-                            <select name="customer_id" id="lic-customer-id" required onchange="ui.licenses.onCustomerChange(this.value)" class="form-input">
-                                <option value="">Select Customer...</option>
-                                ${state.customers.map(c => `<option value="${c.id}" ${data.customer_id === c.id ? 'selected' : ''}>${c.name}</option>`).join('')}
-                            </select>
+                            <div class="customer-search-container">
+                                <input type="text" id="lic-customer-search" 
+                                       class="form-input" 
+                                       placeholder="Type customer name..."
+                                       oninput="ui.licenses.filterCustomers(this.value)"
+                                       autocomplete="off"
+                                       value="${data.customer_name || ''}">
+                                <input type="hidden" name="customer_id" id="lic-customer-id" value="${data.customer_id || ''}" required>
+                                <div id="lic-customer-results" class="customer-results-list hidden"></div>
+                            </div>
                         </div>
                         <div class="grid grid-cols-2 gap-4">
                             <div>
@@ -2199,15 +2205,17 @@ try {
                                 <option value="AquiferTest">
                                 <option value="Visual MODFLOW Flex">
                                 <option value="Hydro GeoAnalyst">
+                                <option value="GW Apps">
+                                <option value="Breeze AERMOD">
+                                <option value="Breeze ROADS">
+                                <option value="Breeze HAZ">
                                 <option value="AustalView">
                                 <option value="CALPUFFView">
-                                <option value="EcoRiskView">
+                                <option value="EcoView">
                                 <option value="WRPLOT View">
                                 <option value="Screen View">
                                 <option value="SLAB View">
-                                <option value="IRAP-h View">
-                                <option value="OriginPro">
-                                <option value="CalRoads View">
+                                <option value="Shoreline View">
                                 </datalist>
                         </div>
                         <div class="grid grid-cols-2 gap-4">
@@ -4172,18 +4180,21 @@ try {
                 } else if (type === 'license') {
                     const licenseData = data && data.id ? state.licenses.find(l => l.id === data.id) : (data || {});
 
-                    // Prepare contacts HTML if customer is selected
                     let contacts_html = '<option value="">Select Contact...</option>';
+                    let customer_name = '';
                     if (licenseData.customer_id) {
                         const cust = state.customers.find(c => c.id === licenseData.customer_id);
-                        if (cust && cust.contacts) {
-                            contacts_html += cust.contacts.map(c =>
-                                `<option value="${c.name}" ${licenseData.contact_person === c.name ? 'selected' : ''}>${c.name} (${c.role || 'No Role'})</option>`
-                            ).join('');
+                        if (cust) {
+                            customer_name = cust.name;
+                            if (cust.contacts) {
+                                contacts_html += cust.contacts.map(c =>
+                                    `<option value="${c.name}" ${licenseData.contact_person === c.name ? 'selected' : ''}>${c.name} (${c.role || 'No Role'})</option>`
+                                ).join('');
+                            }
                         }
                     }
 
-                    root.innerHTML = Templates.LicenseForm({ ...licenseData, contacts_html });
+                    root.innerHTML = Templates.LicenseForm({ ...licenseData, contacts_html, customer_name });
 
                     // Trigger status preview if end date exists
                     if (licenseData.end_date) {
@@ -4236,6 +4247,44 @@ try {
         licenses: {
             filters: { category: '', type: '', status: '' },
             searchQuery: '',
+
+            filterCustomers: (query) => {
+                const results = document.getElementById('lic-customer-results');
+                if (!query) {
+                    results.classList.add('hidden');
+                    return;
+                }
+                const filtered = state.customers.filter(c =>
+                    c.name.toLowerCase().includes(query.toLowerCase()) ||
+                    (c.company && c.company.toLowerCase().includes(query.toLowerCase()))
+                );
+                if (filtered.length > 0) {
+                    results.innerHTML = filtered.map(c => `
+                        <div class="customer-result-item" onclick="ui.licenses.selectCustomer('${c.id}', '${c.name.replace(/'/g, "\\'")}')">
+                            <div class="item-info">
+                                <span class="customer-name">${c.name}</span>
+                                <span class="customer-meta">${c.company || 'Individual'}</span>
+                            </div>
+                            <div class="bg-blue-50 text-blue-600 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider">
+                                ${c.city || 'Local'}
+                            </div>
+                        </div>
+                    `).join('');
+                    results.classList.remove('hidden');
+                } else {
+                    results.innerHTML = '<div class="p-4 text-xs font-bold text-slate-400">No customers found</div>';
+                    results.classList.remove('hidden');
+                }
+            },
+
+            selectCustomer: (id, name) => {
+                const searchInput = document.getElementById('lic-customer-search');
+                const idInput = document.getElementById('lic-customer-id');
+                if (searchInput) searchInput.value = name;
+                if (idInput) idInput.value = id;
+                document.getElementById('lic-customer-results').classList.add('hidden');
+                ui.licenses.onCustomerChange(id);
+            },
 
             search: (val) => {
                 ui.licenses.searchQuery = val;
@@ -7993,9 +8042,9 @@ try {
                     const baseColStyles = {
                         0: { cellWidth: 8, halign: 'center' }, // Sr No
                         1: { cellWidth: 'auto' },              // Name
-                        2: { cellWidth: 15, halign: 'center' }, // HSN
-                        3: { cellWidth: 10, halign: 'center' }, // Qty
-                        4: { cellWidth: 20, halign: 'right' }   // Rate
+                        2: { cellWidth: 13, halign: 'center' }, // HSN
+                        3: { cellWidth: 9, halign: 'center' }, // Qty
+                        4: { cellWidth: 19, halign: 'right' }   // Rate
                     };
 
                     let colIdx = 5;
@@ -8010,12 +8059,12 @@ try {
                         baseColStyles[colIdx++] = { cellWidth: 18, halign: 'right' };  // IGST Amt
                     } else {
                         baseColStyles[colIdx++] = { cellWidth: 8, halign: 'center' };  // CGST %
-                        baseColStyles[colIdx++] = { cellWidth: 15, halign: 'right' };  // CGST Amt
+                        baseColStyles[colIdx++] = { cellWidth: 18, halign: 'right' };  // CGST Amt
                         baseColStyles[colIdx++] = { cellWidth: 8, halign: 'center' };  // SGST %
-                        baseColStyles[colIdx++] = { cellWidth: 15, halign: 'right' };  // SGST Amt
+                        baseColStyles[colIdx++] = { cellWidth: 18, halign: 'right' };  // SGST Amt
                     }
 
-                    baseColStyles[colIdx++] = { cellWidth: 25, halign: 'right' }; // Total
+                    baseColStyles[colIdx++] = { cellWidth: 21, halign: 'right' }; // Total
 
                     pdf.autoTable({
                         startY: tableStartY,
@@ -8272,14 +8321,24 @@ try {
                     finalY += footerHeight + 5;
 
                     // Notes & Terms
-                    if (finalY + 40 > pageHeight - 10) { pdf.addPage(); finalY = margin; }
-                    pdf.setLineWidth(0.1);
-                    pdf.rect(margin, finalY, pageWidth - (margin * 2), 35);
-                    pdf.setFont('Poppins', 'bold');
-                    pdf.text('Terms and Conditions:', margin + 2, finalY + 5);
                     pdf.setFont('Poppins', 'normal');
                     const splitTerms = pdf.splitTextToSize(doc.terms || '1. Goods once sold cannot be taken back.\n2. Subject to local Jurisdiction.', pageWidth - (margin * 2) - 4);
-                    pdf.text(splitTerms, margin + 2, finalY + 10);
+
+                    const termsLineHeight = 3.5;
+                    // Header takes about 5-7 units. Text starts at 10.
+                    // Height = 9 (top padding + header) + (lines * line height) + 2 (bottom padding)
+                    const termsBoxHeight = 9 + (splitTerms.length * termsLineHeight) + 2;
+
+                    if (finalY + termsBoxHeight > pageHeight - 10) { pdf.addPage(); finalY = margin; }
+
+                    pdf.setLineWidth(0.1);
+                    pdf.rect(margin, finalY, pageWidth - (margin * 2), termsBoxHeight);
+
+                    pdf.setFont('Poppins', 'bold');
+                    pdf.text('Terms and Conditions:', margin + 2, finalY + 5);
+
+                    pdf.setFont('Poppins', 'normal');
+                    pdf.text(splitTerms, margin + 2, finalY + 9);
 
                     // Bottom page flag
                     pdf.setFontSize(6);
@@ -8392,4 +8451,3 @@ try {
     console.error('CRITICAL STARTUP ERROR:', e);
     alert('CRITICAL STARTUP ERROR: ' + e.message);
 }
-
