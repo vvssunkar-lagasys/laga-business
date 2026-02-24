@@ -2616,12 +2616,16 @@ try {
                 const container = document.getElementById('additional-contacts-list');
                 const id = Date.now().toString() + Math.floor(Math.random() * 1000);
                 const div = document.createElement('div');
-                div.className = 'grid grid-cols-4 gap-4 items-start relative bg-slate-50 p-4 rounded-xl';
+                div.className = 'grid grid-cols-5 gap-4 items-start relative bg-slate-50 p-4 rounded-xl';
                 div.id = `contact-${id}`;
                 div.innerHTML = `
                     <div>
                         <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Name</label>
                         <input type="text" name="extra_contact_name_${id}" class="form-input bg-white" placeholder="Name">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Department</label>
+                        <input type="text" name="extra_contact_dept_${id}" class="form-input bg-white" placeholder="Department">
                     </div>
                     <div>
                         <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Mobile</label>
@@ -2661,6 +2665,7 @@ try {
                     if (data[`extra_contact_name_${id}`]) {
                         contacts.push({
                             name: data[`extra_contact_name_${id}`],
+                            dept: data[`extra_contact_dept_${id}`],
                             mobile: data[`extra_contact_mobile_${id}`],
                             email: data[`extra_contact_email_${id}`],
                             role: data[`extra_contact_role_${id}`]
@@ -2668,10 +2673,33 @@ try {
                     }
                     // Clean up temp fields
                     delete data[`extra_contact_name_${id}`];
+                    delete data[`extra_contact_dept_${id}`];
                     delete data[`extra_contact_mobile_${id}`];
                     delete data[`extra_contact_email_${id}`];
                     delete data[`extra_contact_role_${id}`];
                 });
+
+                // Workaround for missing columns (contact_dept, contact_role, etc.): Store primary contact details in contacts array
+                const primaryFields = ['contact_dept', 'contact_role', 'contact_mobile', 'contact_email', 'contact_phone'];
+                const primaryData = { is_primary: true, name: data.contact_name };
+                let hasPrimaryData = !!data.contact_name; // Fix: True if name exists
+
+                primaryFields.forEach(field => {
+                    if (data[field]) {
+                        primaryData[field.replace('contact_', '')] = data[field];
+                        hasPrimaryData = true;
+                    }
+                    delete data[field];
+                });
+
+                // Also delete contact_name from top-level to store in JSONB if we want consistency, 
+                // but let's keep it if it's a valid column. 
+                // Based on previous fixes, we should probably move it to JSONB too for safety.
+                delete data.contact_name;
+
+                if (hasPrimaryData) {
+                    contacts.unshift(primaryData);
+                }
 
                 if (contacts.length > 0) {
                     data.contacts = contacts;
@@ -2793,10 +2821,18 @@ try {
                                 <!-- Contact Person -->
                                 <div class="space-y-4">
                                     <h4 class="text-sm font-bold text-slate-900 border-b border-slate-100 pb-2">Primary Contact Person</h4>
-                                    <div class="grid grid-cols-4 gap-4">
+                                    <div class="grid grid-cols-6 gap-4">
                                         <div class="col-span-1">
                                             <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Name</label>
                                             <input type="text" name="contact_name" class="form-input" placeholder="Name">
+                                        </div>
+                                        <div>
+                                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Department</label>
+                                            <input type="text" name="contact_dept" class="form-input" placeholder="Department">
+                                        </div>
+                                        <div>
+                                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Designation</label>
+                                            <input type="text" name="contact_role" class="form-input" placeholder="Role">
                                         </div>
                                         <div>
                                             <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Mobile No</label>
@@ -2926,14 +2962,15 @@ try {
                     // Start Customer View Modal
                     // data is passed as the second argument to open(type, data)
                     const c = data || {};
+                    const primaryContact = c.contacts && Array.isArray(c.contacts) ? c.contacts.find(con => con.is_primary) : null;
 
                     const billingState = Constants.States.find(s => s.code === c.state)?.name || c.state || '-';
                     const shippingState = Constants.States.find(s => s.code === c.shipping_state)?.name || c.shipping_state || '-';
 
-                    const contactsList = c.contacts && Array.isArray(c.contacts) ? c.contacts.map(contact => `
+                    const contactsList = c.contacts && Array.isArray(c.contacts) ? c.contacts.filter(con => !con.is_primary).map(contact => `
                         <div class="p-3 bg-slate-50 rounded-lg border border-slate-100">
                             <div class="font-bold text-slate-900">${contact.name}</div>
-                            <div class="text-xs text-slate-500">${contact.role || 'No Role'}</div>
+                            <div class="text-xs text-slate-500">${contact.dept || '-'} | ${contact.role || 'No Role'}</div>
                             <div class="mt-2 text-xs space-y-1">
                                 <div class="flex items-center gap-2"><svg class="w-3 h-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a2 2 0 011.917 1.285l1.257 3.771a2 2 0 01-1.917 2.715H9.196a11.722 11.722 0 005.093 5.093v-1.114a2 2 0 012.715-1.917l3.771 1.257c.54.18.917.684.917 1.257V21a2 2 0 01-2 2h-1c-10.493 0-19-8.507-19-19V5z"></path></svg> ${contact.mobile || '-'}</div>
                                 <div class="flex items-center gap-2"><svg class="w-3 h-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg> ${contact.email || '-'}</div>
@@ -2982,16 +3019,24 @@ try {
                                                 <div class="text-slate-900 font-medium">${c.contact_name || '-'}</div>
                                             </div>
                                             <div>
+                                                <label class="text-[10px] text-slate-400 font-bold uppercase">Role/Designation</label>
+                                                <div class="text-slate-900 font-medium">${c.contact_role || primaryContact?.role || '-'}</div>
+                                            </div>
+                                            <div>
+                                                <label class="text-[10px] text-slate-400 font-bold uppercase">Department</label>
+                                                <div class="text-slate-900 font-medium">${c.contact_dept || primaryContact?.dept || '-'}</div>
+                                            </div>
+                                            <div>
                                                 <label class="text-[10px] text-slate-400 font-bold uppercase">Mobile</label>
-                                                <div class="text-slate-900 font-medium">${c.contact_mobile || '-'}</div>
+                                                <div class="text-slate-900 font-medium">${c.contact_mobile || primaryContact?.mobile || '-'}</div>
                                             </div>
                                             <div>
                                                 <label class="text-[10px] text-slate-400 font-bold uppercase">Email</label>
-                                                <div class="text-slate-900 font-medium">${c.contact_email || '-'}</div>
+                                                <div class="text-slate-900 font-medium">${c.contact_email || primaryContact?.email || '-'}</div>
                                             </div>
                                             <div>
                                                 <label class="text-[10px] text-slate-400 font-bold uppercase">Phone</label>
-                                                <div class="text-slate-900 font-medium">${c.contact_phone || '-'}</div>
+                                                <div class="text-slate-900 font-medium">${c.contact_phone || primaryContact?.phone || '-'}</div>
                                             </div>
                                         </div>
                                     </div>
@@ -3062,7 +3107,7 @@ try {
                         <div class="builder-section grid grid-cols-12 gap-0 border-b-2">
                             <div class="col-span-12 lg:col-span-3 pr-8">
                                 <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Select Customer</label>
-                                <div class="customer-search-container">
+                                <div class="customer-search-container relative">
                                     <input type="text" id="inv-customer-search" 
                                            class="w-full text-lg font-black bg-transparent border-none p-0 focus:ring-0 placeholder:text-slate-300" 
                                            placeholder="Type customer name..." 
@@ -3070,8 +3115,28 @@ try {
                                            autocomplete="off">
                                     <input type="hidden" id="inv-customer">
                                     <div id="inv-customer-results" class="customer-results-list hidden"></div>
+                                    
+                                    <!-- Contact picker popup (appears after customer is selected) -->
+                                    <div id="inv-contact-picker" class="hidden absolute top-full left-0 right-0 z-[110] mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden" style="max-height:220px;overflow-y:auto;">
+                                        <div class="px-3 py-2 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                                            <span class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Select Contact Person</span>
+                                            <button type="button" onclick="document.getElementById('inv-contact-picker').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 text-xs leading-none">&times;</button>
+                                        </div>
+                                        <div id="inv-contact-list" class="divide-y divide-slate-50"></div>
+                                    </div>
                                 </div>
-                                <div class="mt-4 flex gap-4">
+                                <!-- Hidden inputs to store selected contact -->
+                                <input type="hidden" id="inv-contact-name">
+                                <input type="hidden" id="inv-contact-role">
+                                <input type="hidden" id="inv-contact-dept">
+                                
+                                <!-- Selected contact chip -->
+                                <div id="inv-contact-chip" class="hidden mt-2 flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-lg px-3 py-1.5 hover:bg-blue-100 transition-colors cursor-default">
+                                    <svg class="w-3 h-3 text-blue-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+                                    <span id="inv-contact-label" class="text-[10px] font-bold text-blue-700 flex-1 truncate"></span>
+                                    <button type="button" onclick="ui.invoice.clearContact()" class="text-blue-300 hover:text-blue-600 text-xs leading-none ml-1">&times;</button>
+                                </div>
+                                <div class="mt-3 flex gap-4">
                                     <button onclick="ui.modal.open('customer')" class="text-xs font-bold text-accent">+ Create Customer</button>
                                 </div>
                             </div>
@@ -4213,7 +4278,7 @@ try {
                 const table = type === 'product' ? 'products' : 'customers';
                 const item = state[table].find(i => i.id === id);
                 if (item) {
-                    const form = document.getElementById(`${type} -form`);
+                    const form = document.getElementById(`${type}-form`);
                     if (!form) return;
 
                     Object.keys(item).forEach(key => {
@@ -4224,11 +4289,21 @@ try {
                             if (container) container.innerHTML = '';
 
                             item[key].forEach(contact => {
+                                if (contact.is_primary) {
+                                    // Populate primary contact fields if found in contacts JSONB
+                                    const primaryFields = ['dept', 'role', 'mobile', 'email', 'phone'];
+                                    primaryFields.forEach(f => {
+                                        const field = form.elements[`contact_${f}`];
+                                        if (field) field.value = contact[f] || '';
+                                    });
+                                    return; // Don't add to additional contacts
+                                }
                                 const rowId = ui.customer.addContact();
-                                if (form.elements[`extra_contact_name_${rowId} `]) form.elements[`extra_contact_name_${rowId} `].value = contact.name || '';
-                                if (form.elements[`extra_contact_mobile_${rowId} `]) form.elements[`extra_contact_mobile_${rowId} `].value = contact.mobile || '';
-                                if (form.elements[`extra_contact_email_${rowId} `]) form.elements[`extra_contact_email_${rowId} `].value = contact.email || '';
-                                if (form.elements[`extra_contact_role_${rowId} `]) form.elements[`extra_contact_role_${rowId} `].value = contact.role || '';
+                                if (form.elements[`extra_contact_name_${rowId}`]) form.elements[`extra_contact_name_${rowId}`].value = contact.name || '';
+                                if (form.elements[`extra_contact_dept_${rowId}`]) form.elements[`extra_contact_dept_${rowId}`].value = contact.dept || '';
+                                if (form.elements[`extra_contact_mobile_${rowId}`]) form.elements[`extra_contact_mobile_${rowId}`].value = contact.mobile || '';
+                                if (form.elements[`extra_contact_email_${rowId}`]) form.elements[`extra_contact_email_${rowId}`].value = contact.email || '';
+                                if (form.elements[`extra_contact_role_${rowId}`]) form.elements[`extra_contact_role_${rowId}`].value = contact.role || '';
                             });
                         } else {
                             const field = form.elements[key];
@@ -4976,6 +5051,101 @@ try {
                 document.getElementById('inv-customer-search').value = name;
                 document.getElementById('inv-customer-results').classList.add('hidden');
                 ui.invoice.updateCalculations();
+                // Show contact picker for the selected customer
+                ui.invoice.showContactPicker(id);
+            },
+
+            showContactPicker: (customerId) => {
+                const customer = state.customers.find(c => c.id === customerId);
+                if (!customer) return;
+
+                // Build contacts list: primary contact + additional contacts
+                const allContacts = [];
+
+                // 1. Primary contact (from JSONB array)
+                const primaryInArray = (customer.contacts && Array.isArray(customer.contacts))
+                    ? customer.contacts.find(c => c.is_primary)
+                    : null;
+
+                if (primaryInArray) {
+                    allContacts.push({ ...primaryInArray, _source: 'jsonb_primary' });
+                } else if (customer.contact_name) {
+                    // 2. Fallback: Primary contact from top-level fields (if not found in array)
+                    allContacts.push({
+                        name: customer.contact_name,
+                        role: customer.contact_role || '',
+                        dept: customer.contact_dept || '',
+                        is_primary: true,
+                        _source: 'top_level_fallback'
+                    });
+                }
+
+                // 3. Additional contacts (non-primary ones in array)
+                if (customer.contacts && Array.isArray(customer.contacts)) {
+                    customer.contacts.filter(c => !c.is_primary).forEach(c => {
+                        // Avoid duplicates if primary was already added via fallback but also exists in array without is_primary flag (unlikely but safe)
+                        if (!allContacts.find(existing => existing.name === c.name)) {
+                            allContacts.push(c);
+                        }
+                    });
+                }
+
+                const picker = document.getElementById('inv-contact-picker');
+                const list = document.getElementById('inv-contact-list');
+                if (!picker || !list) return;
+
+                if (allContacts.length === 0) {
+                    picker.classList.add('hidden');
+                    return;
+                }
+
+                list.innerHTML = allContacts.map((c, idx) => `
+                    <div class="contact-pick-item flex items-center justify-between px-4 py-2.5 hover:bg-blue-50 cursor-pointer transition-colors"
+                         onclick="ui.invoice.selectContact(${idx})"
+                         data-idx="${idx}">
+                        <div>
+                            <div class="text-xs font-bold text-slate-900">${c.name || '-'}</div>
+                            <div class="text-[10px] text-slate-400">${c.role || c.designation || ''} ${(c.dept || c.department) ? '· ' + (c.dept || c.department) : ''}</div>
+                        </div>
+                        ${c.is_primary ? '<span class="text-[8px] font-black uppercase tracking-wider bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded">Primary</span>' : ''}
+                    </div>
+                `).join('');
+
+                // Store contacts array for selectContact to reference
+                picker._contacts = allContacts;
+                picker.classList.remove('hidden');
+            },
+
+            selectContact: (idx) => {
+                const picker = document.getElementById('inv-contact-picker');
+                if (!picker || !picker._contacts) return;
+                const contact = picker._contacts[idx];
+                if (!contact) return;
+
+                const name = contact.name || '';
+                const role = contact.role || contact.designation || '';
+                const dept = contact.dept || contact.department || '';
+
+                document.getElementById('inv-contact-name').value = name;
+                document.getElementById('inv-contact-role').value = role;
+                document.getElementById('inv-contact-dept').value = dept;
+
+                // Build chip label
+                let label = name;
+                if (role) label += ' · ' + role;
+                if (dept) label += ' · ' + dept;
+                document.getElementById('inv-contact-label').textContent = label;
+
+                document.getElementById('inv-contact-chip').classList.remove('hidden');
+                picker.classList.add('hidden');
+            },
+
+            clearContact: () => {
+                document.getElementById('inv-contact-name').value = '';
+                document.getElementById('inv-contact-role').value = '';
+                document.getElementById('inv-contact-dept').value = '';
+                document.getElementById('inv-contact-chip').classList.add('hidden');
+                document.getElementById('inv-contact-label').textContent = '';
             },
 
             updateDocNo: async () => {
@@ -5280,6 +5450,18 @@ try {
 
                         ui.invoice.toggleExportFields();
                         ui.invoice.updateCalculations();
+
+                        // Restore selected contact from metadata
+                        if (inv.metadata?.contact_name) {
+                            document.getElementById('inv-contact-name').value = inv.metadata.contact_name;
+                            document.getElementById('inv-contact-role').value = inv.metadata.contact_role || '';
+                            document.getElementById('inv-contact-dept').value = inv.metadata.contact_dept || '';
+                            let lbl = inv.metadata.contact_name;
+                            if (inv.metadata.contact_role) lbl += ' · ' + inv.metadata.contact_role;
+                            if (inv.metadata.contact_dept) lbl += ' · ' + inv.metadata.contact_dept;
+                            document.getElementById('inv-contact-label').textContent = lbl;
+                            document.getElementById('inv-contact-chip').classList.remove('hidden');
+                        }
                     }, 500);
 
                 } catch (err) {
@@ -6918,7 +7100,10 @@ try {
                         status: isDraft ? 'Draft' : 'Pending',
                         metadata: {
                             converted_from_pfi: ui.invoice.sourcePfiId || null,
-                            conversion_date: ui.invoice.sourcePfiId ? new Date().toISOString() : null
+                            conversion_date: ui.invoice.sourcePfiId ? new Date().toISOString() : null,
+                            contact_name: document.getElementById('inv-contact-name')?.value || null,
+                            contact_role: document.getElementById('inv-contact-role')?.value || null,
+                            contact_dept: document.getElementById('inv-contact-dept')?.value || null
                         }
                     };
 
@@ -7878,7 +8063,24 @@ try {
 
                     const billingAddr = `${doc.customers?.billing_address1 || ''} ${doc.customers?.billing_address2 || ''}\n${doc.customers?.billing_city || ''}${doc.customers?.billing_pincode ? ' ' + doc.customers.billing_pincode : ''}${doc.customers?.state ? ', ' + getDisplayState(doc.customers.state) : ''}\n${doc.customers?.billing_country || 'India'}`;
                     const splitBill = pdf.splitTextToSize(billingAddr, custBoxWidth - 10);
+
+                    let contactLines = [];
+                    if (doc.metadata?.contact_name) {
+                        // Line 1: Attn: Name | Role
+                        let line1 = 'Attn: ' + doc.metadata.contact_name;
+                        if (doc.metadata.contact_role) line1 += ' | ' + doc.metadata.contact_role;
+
+                        // Add wrapped line 1
+                        contactLines.push(...pdf.splitTextToSize(line1, custBoxWidth - 6));
+
+                        // Line 2: Department
+                        if (doc.metadata.contact_dept) {
+                            contactLines.push(...pdf.splitTextToSize(doc.metadata.contact_dept, custBoxWidth - 6));
+                        }
+                    }
+
                     let customerHeadHeight = 9; // Base height for name
+                    if (contactLines.length > 0) customerHeadHeight += (contactLines.length * 4);
                     if (doc.customers?.gstin) customerHeadHeight += 4;
                     if (doc.customers?.pan_no) customerHeadHeight += 4;
                     const leftContentHeight = customerHeadHeight + 4 + (splitBill.length * 4);
@@ -7902,6 +8104,7 @@ try {
 
                     // Add GSTIN/PAN if available
                     let currentCustY = customerDetailsY + 13;
+
                     if (doc.customers?.gstin) {
                         pdf.setFontSize(7);
                         pdf.setFont('Poppins', 'bold');
@@ -7918,6 +8121,14 @@ try {
                     pdf.setFontSize(8);
                     pdf.setFont('Poppins', 'normal');
                     pdf.text(splitBill, margin + 2, currentCustY + 1);
+                    currentCustY += (splitBill.length * 4) + 1;
+
+                    // Contact Person line at the bottom (below country)
+                    if (contactLines.length > 0) {
+                        pdf.setFontSize(7.5);
+                        pdf.setFont('Poppins', 'normal');
+                        pdf.text(contactLines, margin + 2, currentCustY + 1);
+                    }
 
                     // Right Content
                     pdf.setFontSize(7);
