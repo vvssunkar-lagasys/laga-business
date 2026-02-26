@@ -8506,7 +8506,7 @@ try {
                     if (settings.stamp && showCompanyStamp) {
                         try {
                             const stumpX = pageWidth - margin - 65; // Left of signature
-                            const stumpY = finalY + 8;
+                            const stumpY = finalY + 11;
                             pdf.addImage(settings.stamp, 'PNG', stumpX, stumpY, 25, 25);
                         } catch (e) {
                             console.warn('Company stamp add failed', e);
@@ -8520,7 +8520,7 @@ try {
                             const stampWidth = 33; // Increased from 30
                             const stampHeight = 25; // Increased from 30
                             const revX = pageWidth - margin - 5 - stampWidth; // Adjusted for larger width
-                            const revY = finalY + 10; // Slightly adjusted height
+                            const revY = finalY + 12; // Slightly adjusted height
                             pdf.addImage(settings.revenue_stamp, 'PNG', revX, revY, stampWidth, stampHeight);
                         } catch (e) {
                             console.warn('Revenue stamp add failed', e);
