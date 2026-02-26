@@ -1830,6 +1830,10 @@ try {
                                 <input type="text" name="pan_no" class="form-input font-mono uppercase" value="${data.pan_no || ''}" placeholder="ABCDE1234F">
                             </div>
                             <div>
+                                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">CIN Number</label>
+                                <input type="text" name="cin_no" class="form-input font-mono uppercase" value="${data.cin_no || ''}" placeholder="U72200TG2007PTC053444">
+                            </div>
+                            <div>
                                 <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">MSME / Udyam No</label>
                                 <input type="text" name="msme_no" class="form-input uppercase" value="${data.msme_no || ''}" placeholder="UDYAM-XX-00-0000000">
                             </div>
@@ -7983,10 +7987,14 @@ try {
                     const contentX = margin + textPadding;
 
                     // Dynamic Height Calculation (Max of Left and Right content)
+                    pdf.setFontSize(8.5);
+                    pdf.setFont('Poppins', 'normal');
                     const splitAddr = pdf.splitTextToSize(settings.address || '', leftBoxWidth - textPadding - 2);
-                    const contactYStart = margin + 31 + (splitAddr.length * 4);
-                    const lastTextY = contactYStart + 7;
-                    const leftBoxHeight = (lastTextY + 1.5) - (margin + 10);
+
+                    const gstinY_calc = margin + 21 + (splitAddr.length * 4.2) + 4; // Added 4 for CIN
+                    const contactYStart_calc = gstinY_calc + 9;
+                    const lastTextY = contactYStart_calc + 4; // Reduced as Web is below Email/Ph
+                    const leftBoxHeight = lastTextY - (margin + 10);
 
                     const detailsLineHeight = 4.5;
                     const visibleDetails = [
@@ -8019,21 +8027,28 @@ try {
 
                     pdf.setFontSize(10);
                     pdf.setFont('Poppins', 'bold');
-                    pdf.text(settings.company_name || 'LaGa Systems Pvt Ltd', contentX, margin + 17);
+                    pdf.text(settings.company_name || 'LaGa Systems Pvt Ltd', contentX, margin + 16.5);
 
+                    pdf.setFontSize(8.5);
+                    pdf.setFont('Poppins', 'normal');
+                    pdf.text(splitAddr, contentX, margin + 21);
+
+                    const cinY = margin + 21 + (splitAddr.length * 4.2);
+                    const gstinY = cinY + 4;
                     pdf.setFontSize(7.5);
                     pdf.setFont('Poppins', 'normal');
-                    pdf.text(`GSTIN: ${settings.gstin || '-'}`, contentX, margin + 22);
-                    pdf.text(`PAN: ${settings.pan_no || '-'} | MSME: ${settings.msme_no || '-'}`, contentX, margin + 26);
+                    pdf.text(`CIN No.: ${settings.cin_no || 'U72200TG2007PTC053444'}`, contentX, cinY);
+                    pdf.text(`GSTIN: ${settings.gstin || '-'}`, contentX, gstinY);
+                    pdf.text(`PAN: ${settings.pan_no || '-'} | MSME: ${settings.msme_no || '-'}`, contentX, gstinY + 4);
 
-                    pdf.text(splitAddr, contentX, margin + 31);
+                    // Re-calculate contactYStart based on the new positions
+                    const contactYStart_new = gstinY + 9;
 
                     pdf.setFontSize(6.5);
                     pdf.setFont('Poppins', 'normal');
                     const cleanWeb = (settings.website || '').replace(/^https?:\/\//, '');
-                    pdf.text(`Email: ${settings.company_email || '-'}`, contentX, contactYStart);
-                    pdf.text(`Web: ${cleanWeb || '-'}`, contentX, contactYStart + 3.5);
-                    pdf.text(`Ph: ${settings.company_phone || '-'}`, contentX, contactYStart + 7);
+                    pdf.text(`Email: ${settings.company_email || '-'} | Ph: ${settings.company_phone || '-'}`, contentX, contactYStart_new);
+                    pdf.text(`Web: ${cleanWeb || '-'}`, contentX, contactYStart_new + 3.5);
 
                     // Document Details Box (Right Half Content)
                     const detailX = rightBoxX + 5;
@@ -8061,7 +8076,12 @@ try {
                         return st ? st.name : code;
                     };
 
-                    const billingAddr = `${doc.customers?.billing_address1 || ''} ${doc.customers?.billing_address2 || ''}\n${doc.customers?.billing_city || ''}${doc.customers?.billing_pincode ? ' ' + doc.customers.billing_pincode : ''}${doc.customers?.state ? ', ' + getDisplayState(doc.customers.state) : ''}\n${doc.customers?.billing_country || 'India'}`;
+                    const billingLines = [
+                        `${doc.customers?.billing_address1 || ''} ${doc.customers?.billing_address2 || ''}`.trim(),
+                        `${doc.customers?.billing_city || ''}${doc.customers?.billing_pincode ? ' ' + doc.customers.billing_pincode : ''}${doc.customers?.state ? ', ' + getDisplayState(doc.customers.state) : ''}`.trim(),
+                        (doc.customers?.billing_country || 'India').trim()
+                    ].filter(line => line.length > 0);
+                    const billingAddr = billingLines.join('\n');
                     const splitBill = pdf.splitTextToSize(billingAddr, custBoxWidth - 10);
 
                     let contactLines = [];
@@ -8081,11 +8101,16 @@ try {
 
                     let customerHeadHeight = 9; // Base height for name
                     if (contactLines.length > 0) customerHeadHeight += (contactLines.length * 4);
-                    if (doc.customers?.gstin) customerHeadHeight += 4;
-                    if (doc.customers?.pan_no) customerHeadHeight += 4;
+                    if (doc.customers?.gstin || doc.customers?.pan_no) customerHeadHeight += 4;
                     const leftContentHeight = customerHeadHeight + 4 + (splitBill.length * 4);
 
-                    const shippingAddr = `${doc.customers?.shipping_title || doc.customers?.name || ''}\n${doc.customers?.shipping_address1 || ''} ${doc.customers?.shipping_address2 || ''}\n${doc.customers?.shipping_city || ''}${doc.customers?.shipping_pincode ? ' ' + doc.customers.shipping_pincode : ''}${doc.customers?.state ? ', ' + getDisplayState(doc.customers.state) : ''}\n${doc.customers?.shipping_country || 'India'}`;
+                    const shippingLines = [
+                        (doc.customers?.shipping_title || doc.customers?.name || '').trim(),
+                        `${doc.customers?.shipping_address1 || ''} ${doc.customers?.shipping_address2 || ''}`.trim(),
+                        `${doc.customers?.shipping_city || ''}${doc.customers?.shipping_pincode ? ' ' + doc.customers.shipping_pincode : ''}${doc.customers?.state ? ', ' + getDisplayState(doc.customers.state) : ''}`.trim(),
+                        (doc.customers?.shipping_country || 'India').trim()
+                    ].filter(line => line.length > 0);
+                    const shippingAddr = shippingLines.join('\n');
                     const splitShip = pdf.splitTextToSize(shippingAddr, custBoxWidth - 10);
                     const rightContentHeight = 9 + (splitShip.length * 4); // Start Y (9) + split text height
 
@@ -8102,26 +8127,22 @@ try {
                     pdf.setFontSize(9);
                     pdf.text(doc.customers?.name || 'Walk-in Customer', margin + 2, customerDetailsY + 9);
 
-                    // Add GSTIN/PAN if available
-                    let currentCustY = customerDetailsY + 13;
-
-                    if (doc.customers?.gstin) {
-                        pdf.setFontSize(7);
-                        pdf.setFont('Poppins', 'bold');
-                        pdf.text(`GSTIN: ${doc.customers.gstin}`, margin + 2, currentCustY);
-                        currentCustY += 4;
-                    }
-                    if (doc.customers?.pan_no) {
-                        pdf.setFontSize(7);
-                        pdf.setFont('Poppins', 'bold');
-                        pdf.text(`PAN: ${doc.customers.pan_no}`, margin + 2, currentCustY);
-                        currentCustY += 4;
-                    }
-
+                    // Address
                     pdf.setFontSize(8);
                     pdf.setFont('Poppins', 'normal');
-                    pdf.text(splitBill, margin + 2, currentCustY + 1);
-                    currentCustY += (splitBill.length * 4) + 1;
+                    pdf.text(splitBill, margin + 2, customerDetailsY + 13.5);
+                    let currentCustY = customerDetailsY + 13.5 + (splitBill.length * 4);
+
+                    // Add GSTIN/PAN if available (combined on same line)
+                    if (doc.customers?.gstin || doc.customers?.pan_no) {
+                        pdf.setFontSize(7.5);
+                        pdf.setFont('Poppins', 'bold');
+                        let regInfo = [];
+                        if (doc.customers.gstin) regInfo.push(`GSTIN: ${doc.customers.gstin}`);
+                        if (doc.customers.pan_no) regInfo.push(`PAN: ${doc.customers.pan_no}`);
+                        pdf.text(regInfo.join(' | '), margin + 2, currentCustY + 1);
+                        currentCustY += 4;
+                    }
 
                     // Contact Person line at the bottom (below country)
                     if (contactLines.length > 0) {
@@ -8484,8 +8505,8 @@ try {
                     // Company Stamp (Common for all, placed to left of signature block)
                     if (settings.stamp && showCompanyStamp) {
                         try {
-                            const stumpX = pageWidth - margin - 70; // Left of signature
-                            const stumpY = finalY + 10;
+                            const stumpX = pageWidth - margin - 65; // Left of signature
+                            const stumpY = finalY + 8;
                             pdf.addImage(settings.stamp, 'PNG', stumpX, stumpY, 25, 25);
                         } catch (e) {
                             console.warn('Company stamp add failed', e);
@@ -8496,9 +8517,11 @@ try {
                     if (settings.revenue_stamp && showRevenueStamp) {
                         try {
                             // Moved to signature position
-                            const revX = pageWidth - margin - 35;
-                            const revY = finalY + 12;
-                            pdf.addImage(settings.revenue_stamp, 'PNG', revX, revY, 20, 20);
+                            const stampWidth = 33; // Increased from 30
+                            const stampHeight = 25; // Increased from 30
+                            const revX = pageWidth - margin - 5 - stampWidth; // Adjusted for larger width
+                            const revY = finalY + 10; // Slightly adjusted height
+                            pdf.addImage(settings.revenue_stamp, 'PNG', revX, revY, stampWidth, stampHeight);
                         } catch (e) {
                             console.warn('Revenue stamp add failed', e);
                         }
@@ -8506,9 +8529,9 @@ try {
 
                     // Authorized Signature (Quotations & Pro Forma Only)
                     if (showSignature) {
-                        const sigX = pageWidth - margin - 45;
-                        const sigY = finalY + 12;
-                        const sigW = 40;
+                        const sigX = pageWidth - margin - 33;
+                        const sigY = finalY + 10;
+                        const sigW = 30;
                         const sigH = 20;
 
                         if (settings.signature) {
