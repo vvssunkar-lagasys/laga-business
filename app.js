@@ -1662,31 +1662,16 @@ try {
                     </div>
                 </div>
 
-                <div class="glass p-1 overflow-hidden rounded-3xl border border-slate-100 shadow-sm bg-white/80 backdrop-blur-md">
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-left">
-                            <thead>
-                                <tr class="bg-slate-50/50 border-b border-slate-100">
-                                    <th class="p-5 text-[10px] font-black text-slate-400 uppercase tracking-widest px-8 w-40">Month</th>
-                                    <th class="p-5 text-[10px] font-black text-slate-400 uppercase tracking-widest px-8">HSN/SAC</th>
-                                    <th class="p-5 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest">Taxable Value</th>
-                                    <th class="p-5 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Tax</th>
-                                    <th class="p-5 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest px-8">Total Value</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-slate-50">
-                                ${(() => {
+                ${(() => {
                 const months = Object.keys(data.hsnByMonth || {});
                 if (months.length === 0) {
                     return `
-                                        <tr>
-                                            <td colspan="5" class="p-20 text-center">
-                                                <div class="text-4xl mb-4">📊</div>
-                                                <h4 class="text-slate-900 font-bold text-lg">No HSN Data Found</h4>
-                                                <p class="text-slate-500 text-sm max-w-xs mx-auto">Transaction records for the selected FY are required to generate this summary.</p>
-                                            </td>
-                                        </tr>
-                                    `;
+                                <div class="glass p-20 text-center rounded-3xl border border-slate-100 bg-white/80 backdrop-blur-md">
+                                    <div class="text-4xl mb-4">📊</div>
+                                    <h4 class="text-slate-900 font-bold text-lg">No HSN Data Found</h4>
+                                    <p class="text-slate-500 text-sm max-w-xs mx-auto">Transaction records for the selected FY are required to generate this summary.</p>
+                                </div>
+                            `;
                 }
 
                 const monthOrder = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -1697,49 +1682,106 @@ try {
                     return monthOrder.indexOf(mA) - monthOrder.indexOf(mB);
                 });
 
-                return sortedMonths.map(month => {
-                    const hsnData = Object.values(data.hsnByMonth[month]);
-                    const monthlyTaxable = hsnData.reduce((s, h) => s + h.taxable, 0);
-                    const monthlyTax = hsnData.reduce((s, h) => s + h.tax, 0);
+                let grandTaxable = 0;
+                let grandCGST = 0;
+                let grandSGST = 0;
+                let grandIGST = 0;
+                let grandQty = 0;
+
+                const tableRows = sortedMonths.map(month => {
+                    const domestic = Object.values(data.hsnByMonth[month].domestic || {});
+                    const exports = Object.values(data.hsnByMonth[month].exports || {});
+
+                    const combined = [
+                        ...domestic.map(h => ({ ...h, category: 'Domestic', color: 'text-blue-600', bgColor: 'bg-blue-50/50', borderColor: 'border-blue-100' })),
+                        ...exports.map(h => ({ ...h, category: 'Export', color: 'text-emerald-600', bgColor: 'bg-emerald-50/50', borderColor: 'border-emerald-100' }))
+                    ];
+
+                    if (combined.length === 0) return '';
+
+                    const monthlyTaxable = combined.reduce((s, h) => s + h.taxable, 0);
+                    const monthlyCGST = combined.reduce((s, h) => s + h.cgst, 0);
+                    const monthlySGST = combined.reduce((s, h) => s + h.sgst, 0);
+                    const monthlyIGST = combined.reduce((s, h) => s + h.igst, 0);
+                    const monthlyQty = combined.reduce((s, h) => s + h.count, 0);
+
+                    grandTaxable += monthlyTaxable;
+                    grandCGST += monthlyCGST;
+                    grandSGST += monthlySGST;
+                    grandIGST += monthlyIGST;
+                    grandQty += monthlyQty;
 
                     return `
-                                        <!-- ${month} Section -->
-                                        ${hsnData.map((h, idx) => `
-                                            <tr class="hover:bg-slate-50/50 transition-all duration-300 group">
-                                                <td class="p-5 px-8 font-bold text-slate-900 text-xs">
-                                                    ${idx === 0 ? `<span class="flex items-center gap-2"><span class="w-1.5 h-4 bg-blue-600 rounded-full"></span>${month}</span>` : ''}
-                                                </td>
-                                                <td class="p-5 px-8">
-                                                    <div class="flex items-center gap-3">
-                                                        <span class="font-mono text-xs font-black text-blue-600 bg-blue-50/50 px-3 py-1 rounded-lg border border-blue-100 group-hover:bg-blue-600 group-hover:text-white transition-colors duration-300">${h.code}</span>
-                                                    </div>
-                                                </td>
-                                                <td class="p-5 text-right font-black text-slate-700 text-sm">₹${h.taxable.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                                                <td class="p-5 text-right font-bold text-emerald-600 text-sm">₹${h.tax.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                                                <td class="p-5 text-right px-8 font-black text-slate-900 text-sm">₹${(h.taxable + h.tax).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                                            </tr>
-                                        `).join('')}
-                                        <tr class="bg-blue-50/30 font-black border-b border-blue-100">
-                                            <td colspan="2" class="p-4 px-8 text-[10px] uppercase tracking-widest text-blue-600">${month} Sub-total</td>
-                                            <td class="p-4 text-right text-xs text-blue-600">₹${monthlyTaxable.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                                            <td class="p-4 text-right text-xs text-blue-600">₹${monthlyTax.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                                            <td class="p-4 text-right px-8 text-xs text-blue-600">₹${(monthlyTaxable + monthlyTax).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                                        </tr>
-                                    `;
+                        <!-- ${month} Unified -->
+                        ${combined.map((h, idx) => `
+                            <tr class="hover:bg-slate-50/50 transition-all duration-300 group text-[11px]">
+                                <td class="p-3 px-4 font-bold text-slate-900">
+                                    ${idx === 0 ? `<span class="flex items-center gap-2"><span class="w-1 h-3 bg-slate-900 rounded-full"></span>${month}</span>` : ''}
+                                </td>
+                                <td class="p-3 px-4 text-center">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${h.bgColor} ${h.color} border ${h.borderColor}">
+                                        ${h.category}
+                                    </span>
+                                </td>
+                                <td class="p-3 px-4 text-center">
+                                    <span class="font-mono font-black text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200 group-hover:bg-slate-900 group-hover:text-white transition-colors duration-300">${h.code}</span>
+                                </td>
+                                <td class="p-3 text-right font-bold text-slate-600">${h.count.toLocaleString('en-IN')}</td>
+                                <td class="p-3 text-right font-black text-slate-700">₹${h.taxable.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                                <td class="p-3 text-right font-bold text-orange-600">₹${h.cgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                                <td class="p-3 text-right font-bold text-blue-600">₹${h.sgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                                <td class="p-3 text-right font-bold text-purple-600">₹${h.igst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                                <td class="p-3 text-right px-4 font-black text-slate-900">₹${(h.taxable + h.cgst + h.sgst + h.igst).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                            </tr>
+                        `).join('')}
+                        <tr class="bg-slate-50/50 font-black border-b border-slate-100/50 text-[10px]">
+                            <td colspan="3" class="p-3 px-4 uppercase tracking-widest text-slate-400">${month} Sub-total</td>
+                            <td class="p-3 text-right text-slate-900">${monthlyQty.toLocaleString('en-IN')}</td>
+                            <td class="p-3 text-right text-slate-900">₹${monthlyTaxable.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                            <td class="p-3 text-right text-orange-600/80">₹${monthlyCGST.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                            <td class="p-3 text-right text-blue-600/80">₹${monthlySGST.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                            <td class="p-3 text-right text-purple-600/80">₹${monthlyIGST.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                            <td class="p-3 text-right px-4 text-slate-900">₹${(monthlyTaxable + monthlyCGST + monthlySGST + monthlyIGST).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                        </tr>
+                    `;
                 }).join('');
-            })()}
-                            </tbody>
-                            <tfoot class="bg-blue-600 text-white font-black">
-                                <tr>
-                                    <td colspan="2" class="p-6 px-8 text-xs uppercase tracking-[0.3em]">Grand Total (FY ${state.fy})</td>
-                                    <td class="p-6 text-right text-base">₹${Object.values(data.hsnByMonth).reduce((s, m) => s + Object.values(m).reduce((ss, h) => ss + h.taxable, 0), 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                                    <td class="p-6 text-right text-base">₹${Object.values(data.hsnByMonth).reduce((s, m) => s + Object.values(m).reduce((ss, h) => ss + h.tax, 0), 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                                    <td class="p-6 text-right px-8 text-base">₹${Object.values(data.hsnByMonth).reduce((s, m) => s + Object.values(m).reduce((ss, h) => ss + (h.taxable + h.tax), 0), 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                                </tr>
-                            </tfoot>
-                        </table>
+
+                return `
+                    <div class="glass p-1 overflow-hidden rounded-3xl border border-slate-100 shadow-sm bg-white/80 backdrop-blur-md">
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left">
+                                <thead>
+                                    <tr class="bg-slate-50/50 border-b border-slate-100 text-[9px]">
+                                        <th class="p-3 px-4 font-black text-slate-400 uppercase tracking-widest w-32">Month</th>
+                                        <th class="p-3 px-4 font-black text-slate-400 uppercase tracking-widest text-center">Category</th>
+                                        <th class="p-3 px-4 font-black text-slate-400 uppercase tracking-widest text-center">HSN/SAC</th>
+                                        <th class="p-3 text-right font-black text-slate-400 uppercase tracking-widest">Qty</th>
+                                        <th class="p-3 text-right font-black text-slate-400 uppercase tracking-widest">Taxable</th>
+                                        <th class="p-3 text-right font-black text-slate-400 uppercase tracking-widest">CGST</th>
+                                        <th class="p-3 text-right font-black text-slate-400 uppercase tracking-widest">SGST</th>
+                                        <th class="p-3 text-right font-black text-slate-400 uppercase tracking-widest">IGST</th>
+                                        <th class="p-3 text-right px-4 font-black text-slate-400 uppercase tracking-widest">Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-50">
+                                    ${tableRows}
+                                </tbody>
+                                <tfoot class="bg-slate-900 text-white font-black">
+                                    <tr class="text-[11px]">
+                                        <td colspan="3" class="p-4 px-4 uppercase tracking-[0.2em]">Grand Total (FY ${state.fy})</td>
+                                        <td class="p-4 text-right">${grandQty.toLocaleString('en-IN')}</td>
+                                        <td class="p-4 text-right">₹${grandTaxable.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                                        <td class="p-4 text-right">₹${grandCGST.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                                        <td class="p-4 text-right">₹${grandSGST.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                                        <td class="p-4 text-right">₹${grandIGST.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                                        <td class="p-4 text-right px-4">₹${(grandTaxable + grandCGST + grandSGST + grandIGST).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
                     </div>
-                </div>
+                `;
+            })()}
             </div>
             </div>
         `,
@@ -7730,15 +7772,20 @@ try {
                         const monthLabel = invDate.toLocaleString('en-US', { month: 'long', year: 'numeric' });
 
                         if (!results.hsnByMonth[monthLabel]) {
-                            results.hsnByMonth[monthLabel] = {};
+                            results.hsnByMonth[monthLabel] = { domestic: {}, exports: {} };
                         }
 
-                        if (!results.hsnByMonth[monthLabel][hsn]) {
-                            results.hsnByMonth[monthLabel][hsn] = {
+                        const category = (inv.type === 'LUT / Export') ? 'exports' : 'domestic';
+
+                        if (!results.hsnByMonth[monthLabel][category][hsn]) {
+                            results.hsnByMonth[monthLabel][category][hsn] = {
                                 code: hsn,
                                 desc: item.products?.name || 'Item',
                                 taxable: 0,
-                                tax: 0
+                                cgst: 0,
+                                sgst: 0,
+                                igst: 0,
+                                count: 0
                             };
                         }
 
@@ -7747,7 +7794,10 @@ try {
                                 code: hsn,
                                 desc: item.products?.name || 'Item',
                                 taxable: 0,
-                                tax: 0
+                                cgst: 0,
+                                sgst: 0,
+                                igst: 0,
+                                count: 0
                             };
                         }
                         const rowTaxable = (item.qty * item.rate * (1 - (item.discount || 0) / 100)) * exRate;
@@ -7755,11 +7805,30 @@ try {
                         const gstRate = (inv.type === 'Regular') ? (prodMain?.gst || 0) : 0;
                         const rowTax = (rowTaxable * gstRate) / 100;
 
-                        results.hsnByMonth[monthLabel][hsn].taxable += rowTaxable;
-                        results.hsnByMonth[monthLabel][hsn].tax += rowTax;
+                        const custStateCode = String(inv.customers?.state || '').substring(0, 2);
+                        const isInterstate = myStateCode && custStateCode && myStateCode !== custStateCode;
+
+                        let rowCGST = 0, rowSGST = 0, rowIGST = 0;
+                        if (inv.type !== 'LUT / Export') {
+                            if (isInterstate) {
+                                rowIGST = rowTax;
+                            } else {
+                                rowCGST = rowTax / 2;
+                                rowSGST = rowTax / 2;
+                            }
+                        }
+
+                        results.hsnByMonth[monthLabel][category][hsn].taxable += rowTaxable;
+                        results.hsnByMonth[monthLabel][category][hsn].cgst += rowCGST;
+                        results.hsnByMonth[monthLabel][category][hsn].sgst += rowSGST;
+                        results.hsnByMonth[monthLabel][category][hsn].igst += rowIGST;
+                        results.hsnByMonth[monthLabel][category][hsn].count += (item.qty || 0);
 
                         results.hsn[hsn].taxable += rowTaxable;
-                        results.hsn[hsn].tax += rowTax;
+                        results.hsn[hsn].cgst += rowCGST;
+                        results.hsn[hsn].sgst += rowSGST;
+                        results.hsn[hsn].igst += rowIGST;
+                        results.hsn[hsn].count += (item.qty || 0);
                     });
                 }
 
@@ -7791,63 +7860,97 @@ try {
 
                     const excelData = [];
                     let grandTaxable = 0;
-                    let grandTax = 0;
+                    let grandCGST = 0;
+                    let grandSGST = 0;
+                    let grandIGST = 0;
+                    let grandQty = 0;
 
                     months.forEach(month => {
-                        const hsnData = Object.values(data.hsnByMonth[month]);
+                        const domestic = Object.values(data.hsnByMonth[month].domestic || {});
+                        const exports = Object.values(data.hsnByMonth[month].exports || {});
+
+                        if (domestic.length === 0 && exports.length === 0) return;
+
                         let monthlyTaxable = 0;
-                        let monthlyTax = 0;
+                        let monthlyCGST = 0;
+                        let monthlySGST = 0;
+                        let monthlyIGST = 0;
+                        let monthlyQty = 0;
 
-                        hsnData.forEach(h => {
-                            excelData.push({
-                                'Month': month,
-                                'HSN/SAC': h.code,
-                                'Taxable Value': h.taxable,
-                                'Total Tax': h.tax,
-                                'Total Value': h.taxable + h.tax
+                        const addRows = (list, category) => {
+                            list.forEach(h => {
+                                excelData.push({
+                                    'Month': month,
+                                    'Category': category,
+                                    'HSN/SAC': h.code,
+                                    'Count': h.count,
+                                    'Taxable Value': h.taxable,
+                                    'CGST': h.cgst,
+                                    'SGST': h.sgst,
+                                    'IGST': h.igst,
+                                    'Total Value': h.taxable + h.cgst + h.sgst + h.igst
+                                });
+                                monthlyTaxable += h.taxable;
+                                monthlyCGST += h.cgst;
+                                monthlySGST += h.sgst;
+                                monthlyIGST += h.igst;
+                                monthlyQty += h.count;
                             });
-                            monthlyTaxable += h.taxable;
-                            monthlyTax += h.tax;
-                        });
+                        };
 
-                        // Monthly Sub-total
+                        addRows(domestic, 'Domestic');
+                        addRows(exports, 'Export');
+
                         excelData.push({
                             'Month': `${month} TOTAL`,
+                            'Category': '',
                             'HSN/SAC': '',
+                            'Count': monthlyQty,
                             'Taxable Value': monthlyTaxable,
-                            'Total Tax': monthlyTax,
-                            'Total Value': monthlyTaxable + monthlyTax
+                            'CGST': monthlyCGST,
+                            'SGST': monthlySGST,
+                            'IGST': monthlyIGST,
+                            'Total Value': monthlyTaxable + monthlyCGST + monthlySGST + monthlyIGST
                         });
-                        excelData.push({}); // Spacer
+                        excelData.push({});
 
                         grandTaxable += monthlyTaxable;
-                        grandTax += monthlyTax;
+                        grandCGST += monthlyCGST;
+                        grandSGST += monthlySGST;
+                        grandIGST += monthlyIGST;
+                        grandQty += monthlyQty;
                     });
 
-                    // Grand Total
                     excelData.push({
-                        'Month': 'GRAND TOTAL',
+                        'Month': `GRAND TOTAL (FY ${state.fy})`,
+                        'Category': '',
                         'HSN/SAC': '',
+                        'Count': grandQty,
                         'Taxable Value': grandTaxable,
-                        'Total Tax': grandTax,
-                        'Total Value': grandTaxable + grandTax
+                        'CGST': grandCGST,
+                        'SGST': grandSGST,
+                        'IGST': grandIGST,
+                        'Total Value': grandTaxable + grandCGST + grandSGST + grandIGST
                     });
 
                     const wb = XLSX.utils.book_new();
                     const ws = XLSX.utils.json_to_sheet(excelData);
 
-                    // Set Column Widths
                     const wscols = [
-                        { wch: 20 }, // Month
+                        { wch: 25 }, // Month
+                        { wch: 15 }, // Category
                         { wch: 15 }, // HSN/SAC
+                        { wch: 12 }, // Count
                         { wch: 18 }, // Taxable Value
-                        { wch: 18 }, // Total Tax
+                        { wch: 12 }, // CGST
+                        { wch: 12 }, // SGST
+                        { wch: 12 }, // IGST
                         { wch: 18 }  // Total Value
                     ];
                     ws['!cols'] = wscols;
 
                     XLSX.utils.book_append_sheet(wb, ws, "HSN Summary");
-                    XLSX.writeFile(wb, `HSN_Summary_${state.fy}_${new Date().getTime()}.xlsx`);
+                    XLSX.writeFile(wb, `HSN_Unified_${state.fy}_${new Date().getTime()}.xlsx`);
 
                     api.notifications.show('Excel Export Successful', 'success');
                 } catch (err) {
