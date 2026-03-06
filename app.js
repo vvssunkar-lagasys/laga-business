@@ -147,6 +147,14 @@ try {
             await api.docs.fetch('purchase_orders');
             await api.licenses.fetch();
             await api.reports.fetchStats();
+
+            // 6. Start Live Clock
+            setInterval(() => {
+                const clockEl = document.getElementById('dashboard-clock');
+                if (clockEl) {
+                    clockEl.textContent = getFormattedTime();
+                }
+            }, 1000);
         }
     };
 
@@ -273,6 +281,42 @@ try {
         return words + 'Only';
     };
 
+    const getGreeting = () => {
+        const hour = new Date().getHours();
+        if (hour < 12) return 'Good Morning';
+        if (hour < 17) return 'Good Afternoon';
+        return 'Good Evening';
+    };
+
+    const getFormattedDate = () => {
+        const now = new Date();
+        const suffix = (day) => {
+            if (day > 3 && day < 21) return 'th';
+            switch (day % 10) {
+                case 1: return 'st';
+                case 2: return 'nd';
+                case 3: return 'rd';
+                default: return 'th';
+            }
+        };
+
+        const day = now.getDate();
+        const month = now.toLocaleString('en-US', { month: 'long' });
+        const year = now.getFullYear();
+        const weekday = now.toLocaleString('en-US', { weekday: 'long' });
+
+        return `${weekday}, ${month} ${day}${suffix(day)} ${year}`;
+    };
+
+    const getFormattedTime = () => {
+        return new Date().toLocaleTimeString('en-IN', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: true
+        });
+    };
+
     // --- Views & Components (Templates) ---
     const Templates = {
         Dashboard: (data) => {
@@ -312,21 +356,32 @@ try {
 
             const salesGrowth = lastMonthSales > 0 ? ((thisMonthSales - lastMonthSales) / lastMonthSales * 100) : 100;
 
-            // Attention Needed Alerts
-            const highValueOverdue = invoices.filter(i => i.status === 'Pending' && (i.total_amount || 0) > 100000);
-            const expiringQuotations = quotations.filter(q => {
-                if (!q.validity_date) return false;
-                const validity = new Date(q.validity_date);
-                const diff = (validity - now) / (1000 * 60 * 60 * 24);
-                return diff >= 0 && diff <= 7;
-            });
-
-
-
-
-
+            const userName = state.user?.email ? state.user.email.split('@')[0] : 'User';
+            const capitalizedName = userName.charAt(0).toUpperCase() + userName.slice(1);
 
             return `
+            <div class="dashboard-welcome-section mb-8 animate-fade-in">
+                <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+                    <div class="flex flex-col">
+                        <h1 class="text-3xl font-bold text-slate-900 tracking-tight">${getGreeting()}, ${capitalizedName}! 👋</h1>
+                        <p class="text-slate-500 font-medium mt-1 flex items-center gap-2">
+                            <svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                            </svg>
+                            ${getFormattedDate()}
+                        </p>
+                    </div>
+                    <div class="dashboard-clock-container bg-white/50 backdrop-blur-sm px-4 py-2 rounded-xl border border-slate-100 shadow-sm flex items-center gap-3">
+                        <div class="relative flex h-2 w-2">
+                          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                          <span class="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+                        </div>
+                        <span id="dashboard-clock" class="text-xl font-bold text-slate-800 tabular-nums">
+                            ${getFormattedTime()}
+                        </span>
+                    </div>
+                </div>
+            </div>
             <!-- Enhanced Stats Grid -->
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-slide-up">
                 <!-- Total Sales Card -->
@@ -431,48 +486,13 @@ try {
             <!-- Enhanced Analytics Section -->
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-8">
                 <!-- Revenue Trend Chart -->
-                <div class="analytics-card lg:col-span-2">
+                <div class="analytics-card lg:col-span-3">
                     <div class="flex items-center justify-between mb-4">
                         <h5 class="analytics-title">Revenue Trend (FY ${state.fy})</h5>
                         <div class="text-xs text-slate-400">Monthly breakdown in ₹</div>
                     </div>
                     <div style="height: 300px; position: relative;">
                         <canvas id="revenueTrendChart"></canvas>
-                    </div>
-                </div>
-
-                <!-- Attention Needed Alerts -->
-                <div class="analytics-card">
-                    <h5 class="analytics-title">Attention Needed</h5>
-                    <div class="alert-stack mt-4">
-                        ${highValueOverdue.length === 0 && expiringQuotations.length === 0 ? `
-                            <div class="empty-alert">
-                                <svg class="w-8 h-8 text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                                </svg>
-                                <p>All clear! No critical items.</p>
-                            </div>
-                        ` : ''}
-                        
-                        ${highValueOverdue.map(inv => `
-                            <div class="alert-item high-value" onclick="window.location.hash='#invoices'; ui.sales.search('${inv.invoice_no}')">
-                                <div class="alert-icon">⚠️</div>
-                                <div class="alert-content">
-                                    <span class="alert-label">High-Value Overdue</span>
-                                    <span class="alert-value">₹${inv.total_amount.toLocaleString()} - ${inv.invoice_no}</span>
-                                </div>
-                            </div>
-                        `).join('')}
-
-                        ${expiringQuotations.map(q => `
-                            <div class="alert-item expiring" onclick="window.location.hash='#quotations'; ui.quotations.search('${q.quotation_no}')">
-                                <div class="alert-icon">⏳</div>
-                                <div class="alert-content">
-                                    <span class="alert-label">Quotation Expiring</span>
-                                    <span class="alert-value">${q.quotation_no} - ${formatDate(q.validity_date)}</span>
-                                </div>
-                            </div>
-                        `).join('')}
                     </div>
                 </div>
             </div>
@@ -483,7 +503,6 @@ try {
             <div class="dashboard-header">
                 <div class="dashboard-title">
                     <h2 class="text-2xl font-bold">Products & Services</h2>
-                    <svg class="w-6 h-6 text-pink-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"></path></svg>
                 </div>
             </div>
 
@@ -559,42 +578,7 @@ try {
                 </table>
             </div>
 
-            <div class="promo-section">
-                <div class="promo-image">
-                    <img src="https://img.freepik.com/free-vector/warehouse-workers-checking-boxes-logistics-concept-illustration_114360-15509.jpg" alt="Organize Products">
-                </div>
-                <div class="promo-content">
-                    <h2>Organize and streamline all your products.</h2>
-                    <ul class="promo-features">
-                        <li>
-                            <svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>
-                            Bulk upload products in a click
-                        </li>
-                        <li>
-                            <svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>
-                            Keep multiple price lists of your products
-                        </li>
-                        <li>
-                            <svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>
-                            Create batches for products and even group them accordingly
-                        </li>
-                    </ul>
-                    <button onclick="ui.modal.open('product')" class="btn-add-products">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
-                        Add your Products
-                    </button>
-                    <div class="promo-footer">
-                        <a href="#" class="promo-link">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h2.28a2 2 0 011.917 1.285l1.257 3.771a2 2 0 01-1.917 2.715H9.196a11.722 11.722 0 005.093 5.093v-1.114a2 2 0 012.715-1.917l3.771 1.257c.54.18.917.684.917 1.257V21a2 2 0 01-2 2h-1c-10.493 0-19-8.507-19-19V5z"></path></svg>
-                            Talk to a specialist
-                        </a>
-                        <a href="#" class="promo-link">
-                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"></path></svg>
-                            Watch how it works
-                        </a>
-                    </div>
-                </div>
-            </div>
+            
         </div>
     `,
         Customers: (items, filter = 'All Customers') => `
@@ -602,7 +586,6 @@ try {
             <div class="dashboard-header">
                 <div class="dashboard-title">
                     <h2 class="text-2xl font-bold">Customers</h2>
-                    <svg class="w-6 h-6 text-pink-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"></path></svg>
                 </div>
             </div>
 
@@ -694,38 +677,7 @@ try {
                 </table>
             </div>
 
-            <div class="promo-section">
-                <div class="promo-image">
-                    <img src="https://img.freepik.com/free-vector/professional-handling-clients-concept-illustration_114360-8451.jpg" alt="Managing Customers">
-                </div>
-                <div class="promo-content">
-                    <h2>Managing customers has never been easier.</h2>
-                    <ul class="promo-features">
-                        <li>
-                            <svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>
-                            Know your customers better
-                        </li>
-                        <li>
-                            <svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>
-                            Organize your customer data effortlessly
-                        </li>
-                        <li>
-                            <svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>
-                            Get insights of your verified customers
-                        </li>
-                    </ul>
-                    <button onclick="ui.modal.open('customer')" class="btn-add-products">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
-                        Start adding your customers
-                    </button>
-                    <div class="promo-footer">
-                        <a href="#" class="promo-link">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h2.28a2 2 0 011.917 1.285l1.257 3.771a2 2 0 01-1.917 2.715H9.196a11.722 11.722 0 005.093 5.093v-1.114a2 2 0 012.715-1.917l3.771 1.257c.54.18.917.684.917 1.257V21a2 2 0 01-2 2h-1c-10.493 0-19-8.507-19-19V5z"></path></svg>
-                            Talk to a specialist
-                        </a>
-                    </div>
-                </div>
-            </div>
+            
         </div>
     `,
         Invoices: (items, filter = 'All') => {
@@ -932,7 +884,6 @@ try {
                     <div class="dashboard-header">
                         <div class="dashboard-title">
                             <h2>Purchases</h2>
-                            <svg class="w-6 h-6 text-pink-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"></path></svg>
                         </div>
                         <div class="flex items-center gap-4">
                             <button class="flex items-center gap-2 text-slate-600 font-medium text-sm">
@@ -1043,7 +994,6 @@ try {
                     <div class="dashboard-header">
                         <div class="dashboard-title">
                             <h2>Delivery Challans</h2>
-                            <svg class="w-6 h-6 text-pink-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"></path></svg>
                         </div>
                         <div class="flex items-center gap-4">
                             <button class="flex items-center gap-2 text-slate-600 font-medium text-sm">
@@ -1404,7 +1354,6 @@ try {
                     <div class="dashboard-header">
                         <div class="dashboard-title">
                             <h2>Quotations</h2>
-                            <svg class="w-6 h-6 text-pink-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"></path></svg>
                         </div>
                         <div class="flex items-center gap-4">
 
@@ -1689,46 +1638,110 @@ try {
                 </div>
             </div>
 
-            <!-- HSN Summary Table (Table 12) -->
-            <div class="glass p-8 rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden">
-                <div class="flex justify-between items-center mb-6">
-                    <div>
-                        <h3 class="text-xl font-black text-slate-900">HSN-Wise Summary</h3>
-                        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">GSTR-1 Table 12 - Outward Supplies</p>
+            <!-- Consolidated Monthly HSN-Wise Summary (Table 12) -->
+            <div class="space-y-8 mt-12 pt-12 border-t border-slate-100">
+                <div class="flex items-center justify-between px-2">
+                    <div class="flex flex-col">
+                        <h3 class="text-3xl font-black text-slate-900 flex items-center gap-4">
+                            <div class="w-12 h-12 rounded-2xl bg-blue-600 flex items-center justify-center text-white shadow-xl shadow-blue-200">
+                                <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                            </div>
+                            HSN-Wise Summary (Table 12)
+                        </h3>
+                        <p class="text-xs text-slate-400 font-bold uppercase tracking-[0.2em] mt-3 ml-1">Monthly Outward Supplies Breakdown</p>
                     </div>
-                    <span class="bg-slate-100 text-slate-600 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">Mandatory Filing Data</span>
+                    <div class="flex items-center gap-4">
+                        <button onclick="api.reports.exportHSNToExcel()" class="flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-xl shadow-emerald-200 active:scale-95 group">
+                            <svg class="w-5 h-5 group-hover:animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                            Export Excel
+                        </button>
+                        <div class="flex flex-col items-end gap-1">
+                            <span class="px-4 py-1.5 bg-blue-50 text-blue-600 rounded-full text-[9px] font-black uppercase tracking-widest border border-blue-100">Official Return Data</span>
+                            <p class="text-[8px] text-slate-300 font-bold uppercase tracking-widest mr-1">Auto-aggregated</p>
+                        </div>
+                    </div>
                 </div>
 
-                <div class="overflow-hidden bg-white border border-slate-100 rounded-3xl">
-                    <table class="w-full text-left">
-                        <thead>
-                            <tr class="bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                <th class="p-4">HSN/SAC</th>
-                                <th class="p-4">Description</th>
-                                <th class="p-4 text-right">Taxable Value</th>
-                                <th class="p-4 text-right">Total Tax</th>
-                                <th class="p-4 text-right">Total Value</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-slate-50">
-                            ${Object.values(data.hsn).length === 0 ? `
+                <div class="glass p-1 overflow-hidden rounded-3xl border border-slate-100 shadow-sm bg-white/80 backdrop-blur-md">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left">
+                            <thead>
+                                <tr class="bg-slate-50/50 border-b border-slate-100">
+                                    <th class="p-5 text-[10px] font-black text-slate-400 uppercase tracking-widest px-8 w-40">Month</th>
+                                    <th class="p-5 text-[10px] font-black text-slate-400 uppercase tracking-widest px-8">HSN/SAC</th>
+                                    <th class="p-5 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest">Taxable Value</th>
+                                    <th class="p-5 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Tax</th>
+                                    <th class="p-5 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest px-8">Total Value</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-50">
+                                ${(() => {
+                const months = Object.keys(data.hsnByMonth || {});
+                if (months.length === 0) {
+                    return `
+                                        <tr>
+                                            <td colspan="5" class="p-20 text-center">
+                                                <div class="text-4xl mb-4">📊</div>
+                                                <h4 class="text-slate-900 font-bold text-lg">No HSN Data Found</h4>
+                                                <p class="text-slate-500 text-sm max-w-xs mx-auto">Transaction records for the selected FY are required to generate this summary.</p>
+                                            </td>
+                                        </tr>
+                                    `;
+                }
+
+                const monthOrder = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+                const sortedMonths = months.sort((a, b) => {
+                    const [mA, yA] = a.split(' ');
+                    const [mB, yB] = b.split(' ');
+                    if (yA !== yB) return yA - yB;
+                    return monthOrder.indexOf(mA) - monthOrder.indexOf(mB);
+                });
+
+                return sortedMonths.map(month => {
+                    const hsnData = Object.values(data.hsnByMonth[month]);
+                    const monthlyTaxable = hsnData.reduce((s, h) => s + h.taxable, 0);
+                    const monthlyTax = hsnData.reduce((s, h) => s + h.tax, 0);
+
+                    return `
+                                        <!-- ${month} Section -->
+                                        ${hsnData.map((h, idx) => `
+                                            <tr class="hover:bg-slate-50/50 transition-all duration-300 group">
+                                                <td class="p-5 px-8 font-bold text-slate-900 text-xs">
+                                                    ${idx === 0 ? `<span class="flex items-center gap-2"><span class="w-1.5 h-4 bg-blue-600 rounded-full"></span>${month}</span>` : ''}
+                                                </td>
+                                                <td class="p-5 px-8">
+                                                    <div class="flex items-center gap-3">
+                                                        <span class="font-mono text-xs font-black text-blue-600 bg-blue-50/50 px-3 py-1 rounded-lg border border-blue-100 group-hover:bg-blue-600 group-hover:text-white transition-colors duration-300">${h.code}</span>
+                                                    </div>
+                                                </td>
+                                                <td class="p-5 text-right font-black text-slate-700 text-sm">₹${h.taxable.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                                                <td class="p-5 text-right font-bold text-emerald-600 text-sm">₹${h.tax.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                                                <td class="p-5 text-right px-8 font-black text-slate-900 text-sm">₹${(h.taxable + h.tax).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                                            </tr>
+                                        `).join('')}
+                                        <tr class="bg-blue-50/30 font-black border-b border-blue-100">
+                                            <td colspan="2" class="p-4 px-8 text-[10px] uppercase tracking-widest text-blue-600">${month} Sub-total</td>
+                                            <td class="p-4 text-right text-xs text-blue-600">₹${monthlyTaxable.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                                            <td class="p-4 text-right text-xs text-blue-600">₹${monthlyTax.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                                            <td class="p-4 text-right px-8 text-xs text-blue-600">₹${(monthlyTaxable + monthlyTax).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                                        </tr>
+                                    `;
+                }).join('');
+            })()}
+                            </tbody>
+                            <tfoot class="bg-blue-600 text-white font-black">
                                 <tr>
-                                    <td colspan="5" class="p-8 text-center text-slate-300 italic font-medium">No transaction data available for HSN summary.</td>
+                                    <td colspan="2" class="p-6 px-8 text-xs uppercase tracking-[0.3em]">Grand Total (FY ${state.fy})</td>
+                                    <td class="p-6 text-right text-base">₹${Object.values(data.hsnByMonth).reduce((s, m) => s + Object.values(m).reduce((ss, h) => ss + h.taxable, 0), 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                                    <td class="p-6 text-right text-base">₹${Object.values(data.hsnByMonth).reduce((s, m) => s + Object.values(m).reduce((ss, h) => ss + h.tax, 0), 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                                    <td class="p-6 text-right px-8 text-base">₹${Object.values(data.hsnByMonth).reduce((s, m) => s + Object.values(m).reduce((ss, h) => ss + (h.taxable + h.tax), 0), 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
                                 </tr>
-                            ` : Object.values(data.hsn).map(h => `
-                                <tr class="hover:bg-slate-50 transition-all">
-                                    <td class="p-4 font-mono font-black text-slate-900">${h.code}</td>
-                                    <td class="p-4 font-bold text-slate-600 text-xs">${h.desc}</td>
-                                    <td class="p-4 text-right font-black text-slate-900 text-xs">₹${h.taxable.toLocaleString()}</td>
-                                    <td class="p-4 text-right font-bold text-blue-600 text-xs">₹${h.tax.toLocaleString()}</td>
-                                    <td class="p-4 text-right font-black text-slate-900 text-xs">₹${(h.taxable + h.tax).toLocaleString()}</td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
+                            </tfoot>
+                        </table>
+                    </div>
                 </div>
             </div>
-        </div>
+            </div>
         `,
         DocList: (type, items) => {
             const config = {
@@ -3228,15 +3241,37 @@ try {
                             <div class="grid grid-cols-3 gap-6">
                                 <div>
                                     <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Payment Terms</label>
-                                    <input type="text" id="inv-payment-terms" class="form-input text-sm font-bold bg-slate-50 border-slate-200 rounded-lg w-full" placeholder="e.g., 100% Advance">
+                                    <select id="inv-payment-terms" class="form-input text-sm font-bold bg-slate-50 border-slate-200 rounded-lg w-full">
+                                        <option value="">Select Payment Terms</option>
+                                        <option value="100% Advance">100% Advance</option>
+                                        <option value="100% Within 7 Days">100% Within 7 Days</option>
+                                        <option value="100% Within 10 Days">100% Within 10 Days</option>
+                                        <option value="100% Within 15 Days">100% Within 15 Days</option>
+                                        <option value="100% Within 30 Days">100% Within 30 Days</option>
+                                        <option value="100% Within 45 Days">100% Within 45 Days</option>
+                                    </select>
                                 </div>
                                 <div>
                                     <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Delivery Time</label>
-                                    <input type="text" id="inv-delivery-time" class="form-input text-sm font-bold bg-slate-50 border-slate-200 rounded-lg w-full" placeholder="e.g., 2-3 weeks">
+                                    <select id="inv-delivery-time" class="form-input text-sm font-bold bg-slate-50 border-slate-200 rounded-lg w-full">
+                                        <option value="">Select Delivery Time</option>
+                                        <option value="Within 2 Working Days">Within 2 Working Days</option>
+                                        <option value="Within 3 Working Days">Within 3 Working Days</option>
+                                        <option value="Within 7 Working Days">Within 7 Working Days</option>
+                                        <option value="Within 10 Working Days">Within 10 Working Days</option>
+                                        <option value="Within 30 Working Days">Within 30 Working Days</option>
+                                        <option value="Within 45 Working Days">Within 45 Working Days</option>
+                                        <option value="Within 60 Working Days">Within 60 Working Days</option>
+                                    </select>
                                 </div>
                                 <div>
                                     <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Delivery Mode</label>
-                                    <input type="text" id="inv-delivery-mode" class="form-input text-sm font-bold bg-slate-50 border-slate-200 rounded-lg w-full" placeholder="e.g., By Road">
+                                    <select id="inv-delivery-mode" class="form-input text-sm font-bold bg-slate-50 border-slate-200 rounded-lg w-full">
+                                        <option value="">Select Delivery Mode</option>
+                                        <option value="By Email (No Physical Supply)">By Email (No Physical Supply)</option>
+                                        <option value="By Courier">By Courier</option>
+                                        <option value="In Person">In Person</option>
+                                    </select>
                                 </div>
                             </div>
                         </div>
@@ -3429,19 +3464,39 @@ try {
                         <!-- Section 1: Customer & Header Meta -->
                         <div class="builder-section grid grid-cols-12 gap-0 border-b-2">
                             <div class="col-span-12 lg:col-span-3 pr-8">
-                                <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Select Customer</label>
-                                <div class="customer-search-container">
-                                    <input type="text" id="qtn-customer-search" 
-                                           class="w-full text-lg font-black bg-transparent border-none p-0 focus:ring-0 placeholder:text-slate-300" 
-                                           placeholder="Type customer name..."
-                                           oninput="ui.quotation_v2.filterCustomers(this.value)"
-                                           autocomplete="off">
-                                    <input type="hidden" id="qtn-customer">
-                                    <div id="qtn-customer-results" class="customer-results-list hidden"></div>
-                                </div>
-                                <div class="mt-4 flex gap-4">
-                                    <button onclick="ui.modal.open('customer')" class="text-xs font-bold text-accent">+ Create Customer</button>
-                                </div>
+                                 <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Select Customer</label>
+                                 <div class="customer-search-container relative">
+                                     <input type="text" id="qtn-customer-search" 
+                                            class="w-full text-lg font-black bg-transparent border-none p-0 focus:ring-0 placeholder:text-slate-300" 
+                                            placeholder="Type customer name..."
+                                            oninput="ui.quotation_v2.filterCustomers(this.value)"
+                                            autocomplete="off">
+                                     <input type="hidden" id="qtn-customer">
+                                     <div id="qtn-customer-results" class="customer-results-list hidden"></div>
+
+                                     <!-- Contact picker popup -->
+                                     <div id="qtn-contact-picker" class="hidden absolute top-full left-0 right-0 z-[110] mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden" style="max-height:220px;overflow-y:auto;">
+                                         <div class="px-3 py-2 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                                             <span class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Select Contact Person</span>
+                                             <button type="button" onclick="document.getElementById('qtn-contact-picker').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 text-xs leading-none">&times;</button>
+                                         </div>
+                                         <div id="qtn-contact-list" class="divide-y divide-slate-50"></div>
+                                     </div>
+                                 </div>
+                                 <!-- Hidden inputs to store selected contact -->
+                                 <input type="hidden" id="qtn-contact-name">
+                                 <input type="hidden" id="qtn-contact-role">
+                                 <input type="hidden" id="qtn-contact-dept">
+
+                                 <!-- Selected contact chip -->
+                                 <div id="qtn-contact-chip" class="hidden mt-2 flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-lg px-3 py-1.5 hover:bg-blue-100 transition-colors cursor-default">
+                                     <svg class="w-3 h-3 text-blue-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+                                     <span id="qtn-contact-label" class="text-[10px] font-bold text-blue-700 flex-1 truncate"></span>
+                                     <button type="button" onclick="ui.quotation_v2.clearContact()" class="text-blue-300 hover:text-blue-600 text-xs leading-none ml-1">&times;</button>
+                                 </div>
+                                 <div class="mt-4 flex gap-4">
+                                     <button onclick="ui.modal.open('customer')" class="text-xs font-bold text-accent">+ Create Customer</button>
+                                 </div>
                             </div>
                             
                             <div class="col-span-12 lg:col-span-9 flex border-l border-slate-100 pl-8 gap-8">
@@ -3521,15 +3576,37 @@ try {
                             <div class="grid grid-cols-3 gap-6">
                                 <div>
                                     <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Payment Terms</label>
-                                    <input type="text" id="qtn-payment-terms" class="form-input text-sm font-bold bg-slate-50 border-slate-200 rounded-lg w-full" placeholder="e.g., 100% Advance">
+                                    <select id="qtn-payment-terms" class="form-input text-sm font-bold bg-slate-50 border-slate-200 rounded-lg w-full">
+                                        <option value="">Select Payment Terms</option>
+                                        <option value="100% Advance">100% Advance</option>
+                                        <option value="100% Within 7 Days">100% Within 7 Days</option>
+                                        <option value="100% Within 10 Days">100% Within 10 Days</option>
+                                        <option value="100% Within 15 Days">100% Within 15 Days</option>
+                                        <option value="100% Within 30 Days">100% Within 30 Days</option>
+                                        <option value="100% Within 45 Days">100% Within 45 Days</option>
+                                    </select>
                                 </div>
                                 <div>
                                     <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Delivery Time</label>
-                                    <input type="text" id="qtn-delivery-time" class="form-input text-sm font-bold bg-slate-50 border-slate-200 rounded-lg w-full" placeholder="e.g., 2-3 weeks">
+                                    <select id="qtn-delivery-time" class="form-input text-sm font-bold bg-slate-50 border-slate-200 rounded-lg w-full">
+                                        <option value="">Select Delivery Time</option>
+                                        <option value="Within 2 Working Days">Within 2 Working Days</option>
+                                        <option value="Within 3 Working Days">Within 3 Working Days</option>
+                                        <option value="Within 7 Working Days">Within 7 Working Days</option>
+                                        <option value="Within 10 Working Days">Within 10 Working Days</option>
+                                        <option value="Within 30 Working Days">Within 30 Working Days</option>
+                                        <option value="Within 45 Working Days">Within 45 Working Days</option>
+                                        <option value="Within 60 Working Days">Within 60 Working Days</option>
+                                    </select>
                                 </div>
                                 <div>
                                     <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Delivery Mode</label>
-                                    <input type="text" id="qtn-delivery-mode" class="form-input text-sm font-bold bg-slate-50 border-slate-200 rounded-lg w-full" placeholder="e.g., By Road">
+                                    <select id="qtn-delivery-mode" class="form-input text-sm font-bold bg-slate-50 border-slate-200 rounded-lg w-full">
+                                        <option value="">Select Delivery Mode</option>
+                                        <option value="By Email (No Physical Supply)">By Email (No Physical Supply)</option>
+                                        <option value="By Courier">By Courier</option>
+                                        <option value="In Person">In Person</option>
+                                    </select>
                                 </div>
                             </div>
                         </div>
@@ -3765,15 +3842,37 @@ try {
                             <div class="grid grid-cols-3 gap-6">
                                 <div>
                                     <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Payment Terms</label>
-                                    <input type="text" id="pfi-payment-terms" class="form-input text-sm font-bold bg-slate-50 border-slate-200 rounded-lg w-full" placeholder="e.g., 100% Advance">
+                                    <select id="pfi-payment-terms" class="form-input text-sm font-bold bg-slate-50 border-slate-200 rounded-lg w-full">
+                                        <option value="">Select Payment Terms</option>
+                                        <option value="100% Advance">100% Advance</option>
+                                        <option value="100% Within 7 Days">100% Within 7 Days</option>
+                                        <option value="100% Within 10 Days">100% Within 10 Days</option>
+                                        <option value="100% Within 15 Days">100% Within 15 Days</option>
+                                        <option value="100% Within 30 Days">100% Within 30 Days</option>
+                                        <option value="100% Within 45 Days">100% Within 45 Days</option>
+                                    </select>
                                 </div>
                                 <div>
                                     <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Delivery Time</label>
-                                    <input type="text" id="pfi-delivery-time" class="form-input text-sm font-bold bg-slate-50 border-slate-200 rounded-lg w-full" placeholder="e.g., 2-3 weeks">
+                                    <select id="pfi-delivery-time" class="form-input text-sm font-bold bg-slate-50 border-slate-200 rounded-lg w-full">
+                                        <option value="">Select Delivery Time</option>
+                                        <option value="Within 2 Working Days">Within 2 Working Days</option>
+                                        <option value="Within 3 Working Days">Within 3 Working Days</option>
+                                        <option value="Within 7 Working Days">Within 7 Working Days</option>
+                                        <option value="Within 10 Working Days">Within 10 Working Days</option>
+                                        <option value="Within 30 Working Days">Within 30 Working Days</option>
+                                        <option value="Within 45 Working Days">Within 45 Working Days</option>
+                                        <option value="Within 60 Working Days">Within 60 Working Days</option>
+                                    </select>
                                 </div>
                                 <div>
                                     <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Delivery Mode</label>
-                                    <input type="text" id="pfi-delivery-mode" class="form-input text-sm font-bold bg-slate-50 border-slate-200 rounded-lg w-full" placeholder="e.g., By Road">
+                                    <select id="pfi-delivery-mode" class="form-input text-sm font-bold bg-slate-50 border-slate-200 rounded-lg w-full">
+                                        <option value="">Select Delivery Mode</option>
+                                        <option value="By Email (No Physical Supply)">By Email (No Physical Supply)</option>
+                                        <option value="By Courier">By Courier</option>
+                                        <option value="In Person">In Person</option>
+                                    </select>
                                 </div>
                             </div>
                         </div>
@@ -5316,7 +5415,7 @@ try {
             },
 
             loadDefaultTerms: () => {
-                const terms = state.settings?.default_invoice_terms || "1. Goods once sold will not be taken back.\n2. Payment should be made within 15 days.\n3. All disputes are subject to local jurisdiction.";
+                const terms = state.settings?.default_invoice_terms || "1. Software Warranty:\nThe software is warranted against any design defects as per the specified requirements for a period of one (1) year from the date of supply. During the warranty period, you will be entitled to free software upgrades and technical support.\n\n2. Equipment Warranty:\nThe equipment carries a warranty of one (1) year from the date of supply. The warranty will be void in the event of misuse, mishandling, unauthorized modifications, or physical damage to the equipment.\n\n3. Installation and Training:\nPlease note that the above-mentioned price does not include physical installation and training services. These services can be provided separately upon request at an additional cost.";
                 document.getElementById('inv-notes').value = terms;
             },
 
@@ -5855,7 +5954,7 @@ try {
             },
 
             loadDefaultTerms: () => {
-                document.getElementById('pfi-terms').value = `1. Payment: 100% advance along with purchase order.\n2. Delivery: Within 2-3 weeks from the date of receipt of advance.\n3. Validity: This Pro Forma Invoice is valid for 7 days.\n4. Taxes: GST as applicable.\n5. Order once placed cannot be cancelled.`;
+                document.getElementById('pfi-terms').value = `1. Software Warranty:\nThe software is warranted against any design defects as per the specified requirements for a period of one (1) year from the date of supply. During the warranty period, you will be entitled to free software upgrades and technical support.\n\n2. Equipment Warranty:\nThe equipment carries a warranty of one (1) year from the date of supply. The warranty will be void in the event of misuse, mishandling, unauthorized modifications, or physical damage to the equipment.\n\n3. Installation and Training:\nPlease note that the above-mentioned price does not include physical installation and training services. These services can be provided separately upon request at an additional cost.`;
             },
             updateCalculations: () => {
                 const customerId = document.getElementById('pfi-customer')?.value;
@@ -6085,6 +6184,93 @@ try {
                 document.getElementById('qtn-customer-search').value = name;
                 document.getElementById('qtn-customer-results').classList.add('hidden');
                 ui.quotation_v2.updateCalculations();
+                // Show contact picker for the selected customer
+                ui.quotation_v2.showContactPicker(id);
+            },
+
+            showContactPicker: (customerId) => {
+                const customer = state.customers.find(c => c.id === customerId);
+                if (!customer) return;
+
+                const allContacts = [];
+                const primaryInArray = (customer.contacts && Array.isArray(customer.contacts))
+                    ? customer.contacts.find(c => c.is_primary)
+                    : null;
+
+                if (primaryInArray) {
+                    allContacts.push({ ...primaryInArray, _source: 'jsonb_primary' });
+                } else if (customer.contact_name) {
+                    allContacts.push({
+                        name: customer.contact_name,
+                        role: customer.contact_role || '',
+                        dept: customer.contact_dept || '',
+                        is_primary: true,
+                        _source: 'top_level_fallback'
+                    });
+                }
+
+                if (customer.contacts && Array.isArray(customer.contacts)) {
+                    customer.contacts.filter(c => !c.is_primary).forEach(c => {
+                        if (!allContacts.find(existing => existing.name === c.name)) {
+                            allContacts.push(c);
+                        }
+                    });
+                }
+
+                const picker = document.getElementById('qtn-contact-picker');
+                const list = document.getElementById('qtn-contact-list');
+                if (!picker || !list) return;
+
+                if (allContacts.length === 0) {
+                    picker.classList.add('hidden');
+                    return;
+                }
+
+                list.innerHTML = allContacts.map((c, idx) => `
+                    <div class="contact-pick-item flex items-center justify-between px-4 py-2.5 hover:bg-blue-50 cursor-pointer transition-colors"
+                         onclick="ui.quotation_v2.selectContact(${idx})"
+                         data-idx="${idx}">
+                        <div>
+                            <div class="text-xs font-bold text-slate-900">${c.name || '-'}</div>
+                            <div class="text-[10px] text-slate-400">${c.role || c.designation || ''} ${(c.dept || c.department) ? '· ' + (c.dept || c.department) : ''}</div>
+                        </div>
+                        ${c.is_primary ? '<span class="text-[8px] font-black uppercase tracking-wider bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded">Primary</span>' : ''}
+                    </div>
+                `).join('');
+
+                picker._contacts = allContacts;
+                picker.classList.remove('hidden');
+            },
+
+            selectContact: (idx) => {
+                const picker = document.getElementById('qtn-contact-picker');
+                if (!picker || !picker._contacts) return;
+                const contact = picker._contacts[idx];
+                if (!contact) return;
+
+                const name = contact.name || '';
+                const role = contact.role || contact.designation || '';
+                const dept = contact.dept || contact.department || '';
+
+                document.getElementById('qtn-contact-name').value = name;
+                document.getElementById('qtn-contact-role').value = role;
+                document.getElementById('qtn-contact-dept').value = dept;
+
+                let label = name;
+                if (role) label += ' · ' + role;
+                if (dept) label += ' · ' + dept;
+                document.getElementById('qtn-contact-label').textContent = label;
+
+                document.getElementById('qtn-contact-chip').classList.remove('hidden');
+                picker.classList.add('hidden');
+            },
+
+            clearContact: () => {
+                document.getElementById('qtn-contact-name').value = '';
+                document.getElementById('qtn-contact-role').value = '';
+                document.getElementById('qtn-contact-dept').value = '';
+                document.getElementById('qtn-contact-chip').classList.add('hidden');
+                document.getElementById('qtn-contact-label').textContent = '';
             },
 
             addCustomField: (name = '', value = '') => {
@@ -6298,7 +6484,7 @@ try {
             },
 
             loadDefaultTerms: () => {
-                document.getElementById('qtn-terms').value = `1. Validity: This quotation is valid for 15 days from the date of issue.\n2. Payment: As per the selected payment terms.\n3. Delivery: Subject to stock availability at the time of order confirmation.\n4. Warranty: Standard manufacturer warranty applies unless otherwise specified.\n5. Taxes: GST as applicable at the time of billing.`;
+                document.getElementById('qtn-terms').value = `1. Software Warranty:\nThe software is warranted against any design defects as per the specified requirements for a period of one (1) year from the date of supply. During the warranty period, you will be entitled to free software upgrades and technical support.\n\n2. Equipment Warranty:\nThe equipment carries a warranty of one (1) year from the date of supply. The warranty will be void in the event of misuse, mishandling, unauthorized modifications, or physical damage to the equipment.\n\n3. Installation and Training:\nPlease note that the above-mentioned price does not include physical installation and training services. These services can be provided separately upon request at an additional cost.`;
             },
 
             toggleSignature: () => {
@@ -6507,6 +6693,9 @@ try {
                                 country: document.getElementById('qtn-country')?.value || '',
                                 include_signature: ui.quotation_v2.includeSignature,
                                 round_off: document.getElementById('qtn-round-off')?.checked,
+                                contact_name: document.getElementById('qtn-contact-name').value,
+                                contact_role: document.getElementById('qtn-contact-role').value,
+                                contact_dept: document.getElementById('qtn-contact-dept').value,
                                 custom_fields: Array.from(document.querySelectorAll('#qtn-custom-fields > div')).map(div => ({
                                     name: div.querySelector('.qcf-name').value,
                                     value: div.querySelector('.qcf-value').value
@@ -6688,84 +6877,98 @@ try {
             },
             edit: async (id) => {
                 try {
-                    const { data: q, error } = await supabaseClient
-                        .from('quotations')
-                        .select('*, quotation_items(*)')
-                        .eq('id', id)
-                        .single();
+                    const qtn = state.quotations.find(q => q.id === id);
+                    if (!qtn) throw new Error('Quotation not found');
 
-                    if (error) throw error;
-
-                    ui.quotation_v2.activeId = q.id;
-                    ui.quotation_v2.activeStatus = q.status;
-
+                    ui.quotation_v2.activeId = id;
+                    ui.quotation_v2.activeStatus = qtn.status;
                     ui.modal.open('quotation-new');
 
-                    // Header fields
-                    document.getElementById('qtn-no').value = q.quotation_no;
-                    document.getElementById('qtn-date').value = new Date(q.date).toISOString().split('T')[0];
-                    document.getElementById('qtn-validity').value = q.validity_date ? new Date(q.validity_date).toISOString().split('T')[0] : '';
-                    document.getElementById('qtn-type').value = q.type || 'Regular';
+                    // Set basic fields
+                    document.getElementById('qtn-no').value = qtn.quotation_no;
+                    document.getElementById('qtn-date').value = qtn.date;
+                    if (document.getElementById('qtn-validity')) document.getElementById('qtn-validity').value = qtn.validity_date || '';
+                    document.getElementById('qtn-subject').value = qtn.subject || '';
+                    document.getElementById('qtn-customer').value = qtn.customer_id;
+                    const customer = state.customers.find(c => c.id === qtn.customer_id);
+                    document.getElementById('qtn-customer-search').value = customer ? customer.name : '';
 
-                    // Customer search
-                    if (q.customer_id) {
-                        const customer = state.customers.find(c => c.id === q.customer_id);
-                        ui.quotation_v2.selectCustomer(q.customer_id, customer?.name || 'Unknown Customer');
+                    // Handle Contact Metadata
+                    if (qtn.metadata?.contact_name) {
+                        const name = qtn.metadata.contact_name;
+                        const role = qtn.metadata.contact_role || '';
+                        const dept = qtn.metadata.contact_dept || '';
+
+                        document.getElementById('qtn-contact-name').value = name;
+                        document.getElementById('qtn-contact-role').value = role;
+                        document.getElementById('qtn-contact-dept').value = dept;
+
+                        let label = name;
+                        if (role) label += ' · ' + role;
+                        if (dept) label += ' · ' + dept;
+                        document.getElementById('qtn-contact-label').textContent = label;
+                        document.getElementById('qtn-contact-chip').classList.remove('hidden');
                     }
 
-                    // Metadata
-                    document.getElementById('qtn-subject').value = q.subject || '';
-                    document.getElementById('qtn-currency').value = q.currency || 'INR';
-                    document.getElementById('qtn-bank').value = q.bank_id || '';
-                    document.getElementById('qtn-payment-terms').value = q.payment_terms || '';
-                    document.getElementById('qtn-delivery-time').value = q.delivery_time || '';
-                    document.getElementById('qtn-delivery-mode').value = q.delivery_mode || '';
-                    document.getElementById('qtn-terms').value = q.terms || '';
-                    if (document.getElementById('qtn-bank-charges')) document.getElementById('qtn-bank-charges').value = q.bank_charges || 0;
+                    if (document.getElementById('qtn-type')) document.getElementById('qtn-type').value = qtn.type || 'Regular';
+                    if (document.getElementById('qtn-bank')) document.getElementById('qtn-bank').value = qtn.bank_id || '';
+                    if (document.getElementById('qtn-payment-terms')) document.getElementById('qtn-payment-terms').value = qtn.payment_terms || '';
+                    if (document.getElementById('qtn-delivery-time')) document.getElementById('qtn-delivery-time').value = qtn.delivery_time || '';
+                    if (document.getElementById('qtn-delivery-mode')) document.getElementById('qtn-delivery-mode').value = qtn.delivery_mode || '';
+                    if (document.getElementById('qtn-terms')) document.getElementById('qtn-terms').value = qtn.terms || '';
 
-                    if (q.metadata) {
-                        if (q.metadata.country) document.getElementById('qtn-country').value = q.metadata.country;
-                        if (q.metadata.round_off !== undefined) document.getElementById('qtn-round-off').checked = q.metadata.round_off;
-                        if (q.metadata.include_signature !== undefined) {
-                            ui.quotation_v2.includeSignature = q.metadata.include_signature;
-                            // Update toggle UI
-                            const label = document.getElementById('qtn-sig-label');
-                            const toggle = document.getElementById('qtn-sig-toggle');
-                            if (ui.quotation_v2.includeSignature) {
-                                label.textContent = 'Show Signature on Document';
-                                toggle.classList.remove('grayscale', 'opacity-50');
-                            } else {
-                                label.textContent = 'Hidden Signature';
-                                toggle.classList.add('grayscale', 'opacity-50');
-                            }
-                        }
-                        if (q.metadata.custom_fields) {
-                            q.metadata.custom_fields.forEach(f => ui.quotation_v2.addCustomField(f.name, f.value));
+                    // Signature toggle
+                    ui.quotation_v2.includeSignature = qtn.metadata?.include_signature !== false;
+                    const sigToggle = document.getElementById('qtn-sig-toggle');
+                    if (sigToggle) {
+                        if (ui.quotation_v2.includeSignature) {
+                            sigToggle.classList.add('bg-[#fdf2f8]', 'text-[#ec4899]', 'border-[#fbcfe8]');
+                            sigToggle.classList.remove('bg-slate-50', 'text-slate-400', 'border-slate-200');
+                            document.getElementById('qtn-sig-label').textContent = 'Show Signature on Document';
+                        } else {
+                            sigToggle.classList.remove('bg-[#fdf2f8]', 'text-[#ec4899]', 'border-[#fbcfe8]');
+                            sigToggle.classList.add('bg-slate-50', 'text-slate-400', 'border-slate-200');
+                            document.getElementById('qtn-sig-label').textContent = 'Signature Hidden';
                         }
                     }
 
-                    ui.quotation_v2.toggleExportFields();
+                    // Export fields
+                    if (qtn.type === 'LUT / Export' && document.getElementById('qtn-export-fields')) {
+                        document.getElementById('qtn-country').value = qtn.metadata?.country || 'India';
+                        document.getElementById('qtn-currency').value = qtn.currency || 'USD';
+                        document.getElementById('qtn-exchange-rate').value = qtn.exchange_rate || 1;
+                        document.getElementById('qtn-export-fields').classList.remove('hidden');
+                    }
 
-                    // Line items
-                    const container = document.getElementById('qtn-line-items');
-                    container.innerHTML = '';
-                    if (q.quotation_items && q.quotation_items.length > 0) {
-                        for (const item of q.quotation_items) {
-                            ui.quotation_v2.addItem();
-                            const lastRow = container.lastElementChild;
-                            const product = state.products.find(p => p.id === item.product_id);
-                            lastRow.querySelector('.product-search-input').value = product?.name || 'Unknown Product';
-                            lastRow.querySelector('.product-id-hidden').value = item.product_id;
-                            lastRow.querySelector('.hsn-input').value = item.hsn_code || '';
-                            lastRow.querySelector('.qty-input').value = item.qty;
-                            lastRow.querySelector('.rate-input').value = item.rate;
-                            lastRow.querySelector('.discount-input').value = item.discount || 0;
+                    // Load items
+                    const { data: items } = await supabaseClient.from('quotation_items').select('*').eq('quotation_id', id);
+                    const list = document.getElementById('qtn-line-items');
+                    if (list) {
+                        list.innerHTML = '';
+                        if (items && items.length > 0) {
+                            items.forEach(item => {
+                                ui.quotation_v2.addItem();
+                                const row = list.lastElementChild;
+                                const product = state.products.find(p => p.id === item.product_id);
+                                row.querySelector('.product-search-input').value = product ? product.name : 'Unknown Product';
+                                row.querySelector('.product-id-hidden').value = item.product_id;
+                                row.querySelector('.hsn-input').value = item.hsn_code || '';
+                                row.querySelector('.qty-input').value = item.qty;
+                                row.querySelector('.rate-input').value = item.rate;
+                                row.querySelector('.discount-input').value = item.discount || 0;
+                            });
                         }
                     }
+
+                    // Load custom fields
+                    if (qtn.metadata?.custom_fields && document.getElementById('qtn-custom-fields')) {
+                        qtn.metadata.custom_fields.forEach(f => ui.quotation_v2.addCustomField(f.name, f.value));
+                    }
+
                     ui.quotation_v2.updateCalculations();
                 } catch (err) {
                     console.error('Edit Error:', err);
-                    alert('Edit Failed: ' + err.message);
+                    api.notifications.show('Failed to load quotation details', 'error');
                 }
             }
         },
@@ -6798,7 +7001,6 @@ try {
 
                     ui.proforma_v2.activeId = p.id;
                     ui.proforma_v2.activeStatus = p.status;
-
                     ui.modal.open('proforma-new');
 
                     // Populate fields
@@ -6832,9 +7034,7 @@ try {
                     if (p.bank_id && document.getElementById('pfi-bank')) document.getElementById('pfi-bank').value = p.bank_id;
 
                     const typeSelect = document.getElementById('pfi-type');
-                    if (typeSelect) {
-                        typeSelect.value = p.type || 'Regular';
-                    }
+                    if (typeSelect) typeSelect.value = p.type || 'Regular';
                     if (document.getElementById('pfi-bank-charges')) document.getElementById('pfi-bank-charges').value = p.bank_charges || 0;
                     ui.proforma_v2.toggleExportFields();
 
@@ -6880,6 +7080,7 @@ try {
                 render();
             }
         }
+
     };
 
     // --- Data API ---
@@ -7455,7 +7656,8 @@ try {
                     sales: { taxable: 0, tax: 0, b2b: 0, b2cl: 0, b2cs: 0, exp: 0 },
                     purchases: { taxable: 0, tax: 0 },
                     regional: {}, // State-wise aggregation
-                    hsn: {} // table 12
+                    hsn: {}, // table 12
+                    hsnByMonth: {}
                 };
 
                 const getCompanyStateCode = () => {
@@ -7514,14 +7716,32 @@ try {
                     results.regional[stateName].count += 1;
                 });
 
-                // HSN Aggregation
+                // HSN Aggregation (Monthly Wise)
                 if (allItems) {
                     allItems.forEach(item => {
                         const inv = state.invoices.find(i => i.id === item.invoice_id);
-                        if (!inv) return;
+                        if (!inv || !inv.date) return;
 
                         const exRate = inv.exchange_rate || 1.0;
                         const hsn = item.hsn_code || 'N/A';
+
+                        // Get Month Label (e.g., "April 2024")
+                        const invDate = new Date(inv.date);
+                        const monthLabel = invDate.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+
+                        if (!results.hsnByMonth[monthLabel]) {
+                            results.hsnByMonth[monthLabel] = {};
+                        }
+
+                        if (!results.hsnByMonth[monthLabel][hsn]) {
+                            results.hsnByMonth[monthLabel][hsn] = {
+                                code: hsn,
+                                desc: item.products?.name || 'Item',
+                                taxable: 0,
+                                tax: 0
+                            };
+                        }
+
                         if (!results.hsn[hsn]) {
                             results.hsn[hsn] = {
                                 code: hsn,
@@ -7531,11 +7751,12 @@ try {
                             };
                         }
                         const rowTaxable = (item.qty * item.rate * (1 - (item.discount || 0) / 100)) * exRate;
-                        // Tax calculation per item is safer for HSN summary
-                        // Assuming GST rate is per product. Let's find product GST
                         const prodMain = state.products.find(p => p.id === item.product_id);
                         const gstRate = (inv.type === 'Regular') ? (prodMain?.gst || 0) : 0;
                         const rowTax = (rowTaxable * gstRate) / 100;
+
+                        results.hsnByMonth[monthLabel][hsn].taxable += rowTaxable;
+                        results.hsnByMonth[monthLabel][hsn].tax += rowTax;
 
                         results.hsn[hsn].taxable += rowTaxable;
                         results.hsn[hsn].tax += rowTax;
@@ -7551,6 +7772,88 @@ try {
 
                 state.reports = results;
                 render();
+            },
+            exportHSNToExcel: () => {
+                try {
+                    const data = state.reports;
+                    if (!data || !data.hsnByMonth) {
+                        api.notifications.show('No data available to export', 'warning');
+                        return;
+                    }
+
+                    const monthOrder = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+                    const months = Object.keys(data.hsnByMonth).sort((a, b) => {
+                        const [mA, yA] = a.split(' ');
+                        const [mB, yB] = b.split(' ');
+                        if (yA !== yB) return yA - yB;
+                        return monthOrder.indexOf(mA) - monthOrder.indexOf(mB);
+                    });
+
+                    const excelData = [];
+                    let grandTaxable = 0;
+                    let grandTax = 0;
+
+                    months.forEach(month => {
+                        const hsnData = Object.values(data.hsnByMonth[month]);
+                        let monthlyTaxable = 0;
+                        let monthlyTax = 0;
+
+                        hsnData.forEach(h => {
+                            excelData.push({
+                                'Month': month,
+                                'HSN/SAC': h.code,
+                                'Taxable Value': h.taxable,
+                                'Total Tax': h.tax,
+                                'Total Value': h.taxable + h.tax
+                            });
+                            monthlyTaxable += h.taxable;
+                            monthlyTax += h.tax;
+                        });
+
+                        // Monthly Sub-total
+                        excelData.push({
+                            'Month': `${month} TOTAL`,
+                            'HSN/SAC': '',
+                            'Taxable Value': monthlyTaxable,
+                            'Total Tax': monthlyTax,
+                            'Total Value': monthlyTaxable + monthlyTax
+                        });
+                        excelData.push({}); // Spacer
+
+                        grandTaxable += monthlyTaxable;
+                        grandTax += monthlyTax;
+                    });
+
+                    // Grand Total
+                    excelData.push({
+                        'Month': 'GRAND TOTAL',
+                        'HSN/SAC': '',
+                        'Taxable Value': grandTaxable,
+                        'Total Tax': grandTax,
+                        'Total Value': grandTaxable + grandTax
+                    });
+
+                    const wb = XLSX.utils.book_new();
+                    const ws = XLSX.utils.json_to_sheet(excelData);
+
+                    // Set Column Widths
+                    const wscols = [
+                        { wch: 20 }, // Month
+                        { wch: 15 }, // HSN/SAC
+                        { wch: 18 }, // Taxable Value
+                        { wch: 18 }, // Total Tax
+                        { wch: 18 }  // Total Value
+                    ];
+                    ws['!cols'] = wscols;
+
+                    XLSX.utils.book_append_sheet(wb, ws, "HSN Summary");
+                    XLSX.writeFile(wb, `HSN_Summary_${state.fy}_${new Date().getTime()}.xlsx`);
+
+                    api.notifications.show('Excel Export Successful', 'success');
+                } catch (err) {
+                    console.error('Excel Export Error:', err);
+                    api.notifications.show('Failed to export Excel', 'error');
+                }
             }
         },
         proforma: {
@@ -7901,8 +8204,8 @@ try {
                     alert('Delete failed: ' + err.message);
                 }
             },
-            generatePDF: async (type, id, includeSignature = true, includeRevenueStamp = true, includeCompanyStamp = true) => {
-                try {
+            pdfModel: {
+                fetchData: async (type, id) => {
                     const tableMap = {
                         quotations: 'quotations', proforma: 'proforma_invoices', challans: 'delivery_challans',
                         credit_notes: 'credit_notes', debit_notes: 'debit_notes', purchase_orders: 'purchase_orders',
@@ -7918,11 +8221,6 @@ try {
                         credit_notes: 'credit_note_id', debit_notes: 'debit_note_id', purchase_orders: 'po_id',
                         invoices: 'invoice_id'
                     };
-                    const titleMap = {
-                        quotations: 'QUOTATION', proforma: 'PRO FORMA INVOICE', challans: 'DELIVERY CHALLAN',
-                        credit_notes: 'CREDIT NOTE', debit_notes: 'DEBIT NOTE', purchase_orders: 'PURCHASE ORDER',
-                        invoices: 'TAX INVOICE'
-                    };
 
                     const { data: doc, error: docErr } = await supabaseClient
                         .from(tableMap[type])
@@ -7931,53 +8229,59 @@ try {
                         .single();
                     if (docErr) throw docErr;
 
-                    // Respect metadata preference if not explicitly overridden
-                    if (doc.metadata && doc.metadata.include_signature !== undefined && includeSignature === true) {
-                        includeSignature = doc.metadata.include_signature;
-                    }
-
                     const { data: items, error: itemErr } = await supabaseClient
                         .from(itemTableMap[type])
                         .select('*, products(*)')
                         .eq(docIdFieldMap[type], id);
                     if (itemErr) throw itemErr;
 
-                    const settings = state.settings || {};
+                    return { doc, items };
+                },
+
+                getTitle: (type) => {
+                    const titleMap = {
+                        quotations: 'QUOTATION', proforma: 'PRO FORMA INVOICE', challans: 'DELIVERY CHALLAN',
+                        credit_notes: 'CREDIT NOTE', debit_notes: 'DEBIT NOTE', purchase_orders: 'PURCHASE ORDER',
+                        invoices: 'TAX INVOICE'
+                    };
+                    return titleMap[type] || 'DOCUMENT';
+                },
+
+                initPDF: (type, doc, settings) => {
                     const { jsPDF } = window.jspdf;
                     const pdf = new jsPDF();
 
-                    // Register Poppins Font
                     if (window.FONTS_POPPINS_REGULAR) {
                         pdf.addFileToVFS('Poppins-Regular.ttf', window.FONTS_POPPINS_REGULAR);
                         pdf.addFont('Poppins-Regular.ttf', 'Poppins', 'normal');
                     }
                     if (window.FONTS_POPPINS_BOLD) {
-                        pdf.addFileToVFS('Poppins-Bold.ttf', window.FONTS_POPPINS_BOLD);
-                        pdf.addFont('Poppins-Bold.ttf', 'Poppins', 'bold');
+                        pdf.addFileToVFS('Poppins-BOLD.ttf', window.FONTS_POPPINS_BOLD);
+                        pdf.addFont('Poppins-BOLD.ttf', 'Poppins', 'bold');
                     }
                     pdf.setFont('Poppins', 'normal');
 
-                    const pageWidth = pdf.internal.pageSize.width;
-                    const pageHeight = pdf.internal.pageSize.height;
-                    const margin = 10;
-
-                    // Set PDF metadata for better browser tab title
                     const pdfDocNumber = doc.invoice_no || doc.doc_no || doc.quotation_no || doc.id.slice(0, 8);
                     pdf.setProperties({
-                        title: `${titleMap[type]} - ${pdfDocNumber}`,
-                        subject: titleMap[type],
+                        title: `${api.docs.pdfModel.getTitle(type)} - ${pdfDocNumber}`,
+                        subject: api.docs.pdfModel.getTitle(type),
                         author: settings.company_name || 'LaGa Systems',
                         keywords: 'invoice, gst, tax, business',
                         creator: 'LaGa Business Suite'
                     });
 
+                    return pdf;
+                },
+
+                renderHeader: (pdf, doc, type, settings, margin, pageWidth) => {
                     // Header Box
                     pdf.setDrawColor(0, 0, 0);
                     pdf.setLineWidth(0.1);
                     pdf.rect(margin, margin, pageWidth - (margin * 2), 10); // Top Title Box
                     pdf.setFontSize(10);
                     pdf.setFont('Poppins', 'bold');
-                    pdf.text(titleMap[type], pageWidth / 2, margin + 7, { align: 'center' });
+                    const title = api.docs.pdfModel.getTitle(type);
+                    pdf.text(title, pageWidth / 2, margin + 7, { align: 'center' });
                     pdf.setFontSize(7);
                     pdf.text('ORIGINAL FOR RECIPIENT', pageWidth - margin - 2, margin + 7, { align: 'right' });
 
@@ -7986,14 +8290,14 @@ try {
                     const textPadding = 22; // Unified indent from margin
                     const contentX = margin + textPadding;
 
-                    // Dynamic Height Calculation (Max of Left and Right content)
+                    // Dynamic Height Calculation
                     pdf.setFontSize(8.5);
                     pdf.setFont('Poppins', 'normal');
                     const splitAddr = pdf.splitTextToSize(settings.address || '', leftBoxWidth - textPadding - 2);
 
-                    const gstinY_calc = margin + 21 + (splitAddr.length * 4.2) + 4; // Added 4 for CIN
+                    const gstinY_calc = margin + 21 + (splitAddr.length * 4.2) + 4;
                     const contactYStart_calc = gstinY_calc + 9;
-                    const lastTextY = contactYStart_calc + 4; // Reduced as Web is below Email/Ph
+                    const lastTextY = contactYStart_calc + 4;
                     const leftBoxHeight = lastTextY - (margin + 10);
 
                     const detailsLineHeight = 4.5;
@@ -8041,9 +8345,7 @@ try {
                     pdf.text(`GSTIN: ${settings.gstin || '-'}`, contentX, gstinY);
                     pdf.text(`PAN: ${settings.pan_no || '-'} | MSME: ${settings.msme_no || '-'}`, contentX, gstinY + 4);
 
-                    // Re-calculate contactYStart based on the new positions
                     const contactYStart_new = gstinY + 9;
-
                     pdf.setFontSize(6.5);
                     pdf.setFont('Poppins', 'normal');
                     const cleanWeb = (settings.website || '').replace(/^https?:\/\//, '');
@@ -8055,19 +8357,19 @@ try {
                     const labelOffset = 32;
                     let currentY = margin + 17.5;
 
-                    visibleDetails.forEach((detail, idx) => {
+                    visibleDetails.forEach((detail) => {
                         pdf.setFontSize(8);
                         pdf.setFont('Poppins', 'normal');
                         pdf.text(detail.label, detailX, currentY);
-
                         if (detail.bold) pdf.setFont('Poppins', 'bold');
                         pdf.text(detail.value, detailX + labelOffset, currentY);
-
                         currentY += detailsLineHeight;
                     });
 
-                    // Customer & Shipping Details Box - Dynamic Height Calculation
-                    const customerDetailsY = margin + 10 + dynamicHeaderHeight;
+                    return { dynamicHeaderHeight, rightBoxX };
+                },
+
+                renderAddresses: (pdf, doc, y, margin, pageWidth) => {
                     const custBoxWidth = (pageWidth - (margin * 2)) / 2;
 
                     const getDisplayState = (code) => {
@@ -8086,20 +8388,15 @@ try {
 
                     let contactLines = [];
                     if (doc.metadata?.contact_name) {
-                        // Line 1: Attn: Name | Role
                         let line1 = 'Attn: ' + doc.metadata.contact_name;
                         if (doc.metadata.contact_role) line1 += ' | ' + doc.metadata.contact_role;
-
-                        // Add wrapped line 1
                         contactLines.push(...pdf.splitTextToSize(line1, custBoxWidth - 6));
-
-                        // Line 2: Department
                         if (doc.metadata.contact_dept) {
                             contactLines.push(...pdf.splitTextToSize(doc.metadata.contact_dept, custBoxWidth - 6));
                         }
                     }
 
-                    let customerHeadHeight = 9; // Base height for name
+                    let customerHeadHeight = 9;
                     if (contactLines.length > 0) customerHeadHeight += (contactLines.length * 4);
                     if (doc.customers?.gstin || doc.customers?.pan_no) customerHeadHeight += 4;
                     const leftContentHeight = customerHeadHeight + 4 + (splitBill.length * 4);
@@ -8112,28 +8409,26 @@ try {
                     ].filter(line => line.length > 0);
                     const shippingAddr = shippingLines.join('\n');
                     const splitShip = pdf.splitTextToSize(shippingAddr, custBoxWidth - 10);
-                    const rightContentHeight = 9 + (splitShip.length * 4); // Start Y (9) + split text height
+                    const rightContentHeight = 9 + (splitShip.length * 4);
 
-                    const custBoxDynamicHeight = Math.max(leftContentHeight, rightContentHeight) + 1.5; // 1-point buffer
+                    const custBoxDynamicHeight = Math.max(leftContentHeight, rightContentHeight) + 1.5;
 
                     // Draw Boxes
-                    pdf.rect(margin, customerDetailsY, custBoxWidth, custBoxDynamicHeight);
-                    pdf.rect(margin + custBoxWidth, customerDetailsY, custBoxWidth, custBoxDynamicHeight);
+                    pdf.rect(margin, y, custBoxWidth, custBoxDynamicHeight);
+                    pdf.rect(margin + custBoxWidth, y, custBoxWidth, custBoxDynamicHeight);
 
                     // Left Content
                     pdf.setFontSize(7);
                     pdf.setFont('Poppins', 'bold');
-                    pdf.text('Billing Address:', margin + 2, customerDetailsY + 4);
+                    pdf.text('Billing Address:', margin + 2, y + 4);
                     pdf.setFontSize(9);
-                    pdf.text(doc.customers?.name || 'Walk-in Customer', margin + 2, customerDetailsY + 9);
+                    pdf.text(doc.customers?.name || 'Walk-in Customer', margin + 2, y + 9);
 
-                    // Address
                     pdf.setFontSize(8);
                     pdf.setFont('Poppins', 'normal');
-                    pdf.text(splitBill, margin + 2, customerDetailsY + 13.5);
-                    let currentCustY = customerDetailsY + 13.5 + (splitBill.length * 4);
+                    pdf.text(splitBill, margin + 2, y + 13.5);
+                    let currentCustY = y + 13.5 + (splitBill.length * 4);
 
-                    // Add GSTIN/PAN if available (combined on same line)
                     if (doc.customers?.gstin || doc.customers?.pan_no) {
                         pdf.setFontSize(7.5);
                         pdf.setFont('Poppins', 'bold');
@@ -8144,7 +8439,6 @@ try {
                         currentCustY += 4;
                     }
 
-                    // Contact Person line at the bottom (below country)
                     if (contactLines.length > 0) {
                         pdf.setFontSize(7.5);
                         pdf.setFont('Poppins', 'normal');
@@ -8154,44 +8448,39 @@ try {
                     // Right Content
                     pdf.setFontSize(7);
                     pdf.setFont('Poppins', 'bold');
-                    pdf.text('Shipping address:', margin + custBoxWidth + 2, customerDetailsY + 4);
+                    pdf.text('Shipping address:', margin + custBoxWidth + 2, y + 4);
                     pdf.setFontSize(8);
                     pdf.setFont('Poppins', 'normal');
-                    pdf.text(splitShip, margin + custBoxWidth + 2, customerDetailsY + 9);
+                    pdf.text(splitShip, margin + custBoxWidth + 2, y + 9);
 
-                    // Main Table - Starts after dynamic box
-                    const tableStartY = customerDetailsY + custBoxDynamicHeight;
+                    return custBoxDynamicHeight;
+                },
 
-                    // Main Table
-                    // Main Table Data Calculation
+                getStateCode: (val, gstinFallback) => {
+                    if (val) {
+                        const str = String(val);
+                        const code = str.includes('-') ? str.split('-')[0].trim() : str.trim();
+                        if (code && code.length === 2 && !isNaN(code)) return code;
+                    }
+                    if (gstinFallback) {
+                        const code = String(gstinFallback).substring(0, 2);
+                        if (code && code.length === 2 && !isNaN(code)) return code;
+                    }
+                    return '27';
+                },
+
+                renderLineItems: (pdf, items, doc, settings, startY, margin) => {
                     let totalQty = 0;
                     let totalTaxable = 0;
                     let totalTaxAmt = 0;
                     let totalGrand = 0;
 
-                    const getStateCode = (val, gstinFallback) => {
-                        // 1. Try specified value (e.g. "27 - Maharashtra")
-                        if (val) {
-                            const str = String(val);
-                            const code = str.includes('-') ? str.split('-')[0].trim() : str.trim();
-                            if (code && code.length === 2 && !isNaN(code)) return code;
-                        }
-                        // 2. Try GSTIN fallback (first 2 digits)
-                        if (gstinFallback) {
-                            const code = String(gstinFallback).substring(0, 2);
-                            if (code && code.length === 2 && !isNaN(code)) return code;
-                        }
-                        return '27'; // Final fallback
-                    };
-
-                    const myStateCode = getStateCode(settings?.state, settings?.gstin);
-                    const customerStateCode = getStateCode(doc.customers?.state, doc.customers?.gstin);
+                    const myStateCode = api.docs.pdfModel.getStateCode(settings?.state, settings?.gstin);
+                    const customerStateCode = api.docs.pdfModel.getStateCode(doc.customers?.state, doc.customers?.gstin);
                     const isInterState = customerStateCode !== myStateCode;
 
                     const currency = doc.currency || 'INR';
                     const symbol = { 'INR': 'Rs.', 'USD': '$', 'EUR': '€' }[currency] || currency;
-                    const exchangeRate = parseFloat(doc.exchange_rate) || 1.0;
-
                     const hasDiscount = items.some(i => (i.discount || 0) > 0);
 
                     const tableData = items.map((item, idx) => {
@@ -8208,32 +8497,17 @@ try {
                         totalTaxAmt += taxAmt;
                         totalGrand += total;
 
-                        const row = [
-                            idx + 1,
-                            item.products?.name || 'Custom Item',
-                            item.products?.hsn || '-',
-                            item.qty,
-                            item.rate.toLocaleString('en-IN', { minimumFractionDigits: 2 })
-                        ];
-
-                        if (hasDiscount) {
-                            row.push(`${discPct}%`);
-                        }
-
+                        const row = [idx + 1, item.products?.name || 'Custom Item', item.products?.hsn || '-', item.qty, item.rate.toLocaleString('en-IN', { minimumFractionDigits: 2 })];
+                        if (hasDiscount) row.push(`${discPct}%`);
                         row.push(taxable.toLocaleString('en-IN', { minimumFractionDigits: 2 }));
 
                         if (isInterState) {
-                            row.push(`${gstRate}%`);
-                            row.push(taxAmt.toLocaleString('en-IN', { minimumFractionDigits: 2 }));
+                            row.push(`${gstRate}%`, taxAmt.toLocaleString('en-IN', { minimumFractionDigits: 2 }));
                         } else {
                             const halfRate = gstRate / 2;
                             const halfAmt = taxAmt / 2;
-                            row.push(`${halfRate}%`);
-                            row.push(halfAmt.toLocaleString('en-IN', { minimumFractionDigits: 2 }));
-                            row.push(`${halfRate}%`);
-                            row.push(halfAmt.toLocaleString('en-IN', { minimumFractionDigits: 2 }));
+                            row.push(`${halfRate}%`, halfAmt.toLocaleString('en-IN', { minimumFractionDigits: 2 }), `${halfRate}%`, halfAmt.toLocaleString('en-IN', { minimumFractionDigits: 2 }));
                         }
-
                         row.push(total.toLocaleString('en-IN', { minimumFractionDigits: 2 }));
                         return row;
                     });
@@ -8245,128 +8519,68 @@ try {
                         { content: 'Qty', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
                         { content: `Rate (${symbol})`, rowSpan: 2, styles: { halign: 'center', valign: 'middle' } }
                     ];
-
-                    if (hasDiscount) {
-                        headerRow1.push({ content: 'Disc.', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } });
-                    }
-
+                    if (hasDiscount) headerRow1.push({ content: 'Disc.', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } });
                     headerRow1.push({ content: 'Taxable Value', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } });
-
                     if (isInterState) {
                         headerRow1.push({ content: 'IGST', colSpan: 2, styles: { halign: 'center', valign: 'middle' } });
                     } else {
-                        headerRow1.push({ content: 'CGST', colSpan: 2, styles: { halign: 'center', valign: 'middle' } });
-                        headerRow1.push({ content: 'SGST', colSpan: 2, styles: { halign: 'center', valign: 'middle' } });
+                        headerRow1.push({ content: 'CGST', colSpan: 2, styles: { halign: 'center', valign: 'middle' } }, { content: 'SGST', colSpan: 2, styles: { halign: 'center', valign: 'middle' } });
                     }
-
                     headerRow1.push({ content: 'Total', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } });
 
-                    const headerRow2 = [];
-                    if (isInterState) {
-                        headerRow2.push({ content: '%', styles: { halign: 'center' } }, { content: 'Amount', styles: { halign: 'center' } });
-                    } else {
-                        headerRow2.push({ content: '%', styles: { halign: 'center' } }, { content: 'Amount', styles: { halign: 'center' } });
-                        headerRow2.push({ content: '%', styles: { halign: 'center' } }, { content: 'Amount', styles: { halign: 'center' } });
-                    }
+                    const headerRow2 = isInterState ? [{ content: '%', styles: { halign: 'center' } }, { content: 'Amount', styles: { halign: 'center' } }] : [{ content: '%', styles: { halign: 'center' } }, { content: 'Amount', styles: { halign: 'center' } }, { content: '%', styles: { halign: 'center' } }, { content: 'Amount', styles: { halign: 'center' } }];
 
-                    const headRows = [headerRow1, headerRow2];
-
-                    const baseColStyles = {
-                        0: { cellWidth: 8, halign: 'center' }, // Sr No
-                        1: { cellWidth: 'auto' },              // Name
-                        2: { cellWidth: 13, halign: 'center' }, // HSN
-                        3: { cellWidth: 9, halign: 'center' }, // Qty
-                        4: { cellWidth: 19, halign: 'right' }   // Rate
-                    };
-
+                    const baseColStyles = { 0: { cellWidth: 8, halign: 'center' }, 1: { cellWidth: 'auto' }, 2: { cellWidth: 13, halign: 'center' }, 3: { cellWidth: 9, halign: 'center' }, 4: { cellWidth: 19, halign: 'right' } };
                     let colIdx = 5;
-                    if (hasDiscount) {
-                        baseColStyles[colIdx++] = { cellWidth: 10, halign: 'center' }; // Disc
-                    }
-
-                    baseColStyles[colIdx++] = { cellWidth: 22, halign: 'right' }; // Taxable Value
-
+                    if (hasDiscount) baseColStyles[colIdx++] = { cellWidth: 10, halign: 'center' };
+                    baseColStyles[colIdx++] = { cellWidth: 22, halign: 'right' };
                     if (isInterState) {
-                        baseColStyles[colIdx++] = { cellWidth: 10, halign: 'center' }; // IGST %
-                        baseColStyles[colIdx++] = { cellWidth: 18, halign: 'right' };  // IGST Amt
+                        baseColStyles[colIdx++] = { cellWidth: 10, halign: 'center' };
+                        baseColStyles[colIdx++] = { cellWidth: 18, halign: 'right' };
                     } else {
-                        baseColStyles[colIdx++] = { cellWidth: 8, halign: 'center' };  // CGST %
-                        baseColStyles[colIdx++] = { cellWidth: 18, halign: 'right' };  // CGST Amt
-                        baseColStyles[colIdx++] = { cellWidth: 8, halign: 'center' };  // SGST %
-                        baseColStyles[colIdx++] = { cellWidth: 18, halign: 'right' };  // SGST Amt
+                        baseColStyles[colIdx++] = { cellWidth: 8, halign: 'center' };
+                        baseColStyles[colIdx++] = { cellWidth: 18, halign: 'right' };
+                        baseColStyles[colIdx++] = { cellWidth: 8, halign: 'center' };
+                        baseColStyles[colIdx++] = { cellWidth: 18, halign: 'right' };
                     }
-
-                    baseColStyles[colIdx++] = { cellWidth: 21, halign: 'right' }; // Total
+                    baseColStyles[colIdx++] = { cellWidth: 21, halign: 'right' };
 
                     pdf.autoTable({
-                        startY: tableStartY,
-                        head: headRows,
-                        body: tableData,
+                        startY, head: [headerRow1, headerRow2], body: tableData,
                         foot: [
                             [
                                 { content: 'Total', colSpan: 3, styles: { halign: 'right', fontStyle: 'bold' } },
                                 { content: totalQty, styles: { halign: 'center', fontStyle: 'bold' } },
-                                { content: '', styles: { fillColor: [240, 240, 240] } }, // Rate
-                                ...(hasDiscount ? [{ content: '', styles: { fillColor: [240, 240, 240] } }] : []), // Disc
+                                { content: '', styles: { fillColor: [240, 240, 240] } },
+                                ...(hasDiscount ? [{ content: '', styles: { fillColor: [240, 240, 240] } }] : []),
                                 { content: totalTaxable.toLocaleString('en-IN', { minimumFractionDigits: 2 }), styles: { halign: 'right', fontStyle: 'bold' } },
                                 ...(isInterState
                                     ? [{ content: '', styles: { fillColor: [240, 240, 240] } }, { content: totalTaxAmt.toLocaleString('en-IN', { minimumFractionDigits: 2 }), styles: { halign: 'right', fontStyle: 'bold' } }]
-                                    : [
-                                        { content: '', styles: { fillColor: [240, 240, 240] } },
-                                        { content: (totalTaxAmt / 2).toLocaleString('en-IN', { minimumFractionDigits: 2 }), styles: { halign: 'right', fontStyle: 'bold' } },
-                                        { content: '', styles: { fillColor: [240, 240, 240] } },
-                                        { content: (totalTaxAmt / 2).toLocaleString('en-IN', { minimumFractionDigits: 2 }), styles: { halign: 'right', fontStyle: 'bold' } }
-                                    ]
+                                    : [{ content: '', styles: { fillColor: [240, 240, 240] } }, { content: (totalTaxAmt / 2).toLocaleString('en-IN', { minimumFractionDigits: 2 }), styles: { halign: 'right', fontStyle: 'bold' } }, { content: '', styles: { fillColor: [240, 240, 240] } }, { content: (totalTaxAmt / 2).toLocaleString('en-IN', { minimumFractionDigits: 2 }), styles: { halign: 'right', fontStyle: 'bold' } }]
                                 ),
                                 { content: totalGrand.toLocaleString('en-IN', { minimumFractionDigits: 2 }), styles: { halign: 'right', fontStyle: 'bold' } }
                             ],
-                            ...(doc.bank_charges > 0 ? [[
-                                { content: 'Bank Charges', colSpan: colIdx - 1, styles: { halign: 'right', fontStyle: 'bold' } },
-                                { content: doc.bank_charges.toLocaleString('en-IN', { minimumFractionDigits: 2 }), styles: { halign: 'right', fontStyle: 'bold' } }
-                            ]] : []),
-                            ...(doc.metadata?.round_off ? [[
-                                { content: 'Round Off', colSpan: colIdx - 1, styles: { halign: 'right', fontStyle: 'bold' } },
-                                { content: (doc.total_amount - (totalGrand + (doc.bank_charges || 0))).toLocaleString('en-IN', { minimumFractionDigits: 2 }), styles: { halign: 'right', fontStyle: 'bold' } }
-                            ]] : []),
-                            [
-                                { content: 'Grand Total', colSpan: colIdx - 1, styles: { halign: 'right', fontStyle: 'bold' } },
-                                { content: doc.total_amount.toLocaleString('en-IN', { minimumFractionDigits: 2 }), styles: { halign: 'right', fontStyle: 'bold' } }
-                            ]
+                            ...(doc.bank_charges > 0 ? [[{ content: 'Bank Charges', colSpan: colIdx - 1, styles: { halign: 'right', fontStyle: 'bold' } }, { content: doc.bank_charges.toLocaleString('en-IN', { minimumFractionDigits: 2 }), styles: { halign: 'right', fontStyle: 'bold' } }]] : []),
+                            ...(doc.metadata?.round_off ? [[{ content: 'Round Off', colSpan: colIdx - 1, styles: { halign: 'right', fontStyle: 'bold' } }, { content: (doc.total_amount - (totalGrand + (doc.bank_charges || 0))).toLocaleString('en-IN', { minimumFractionDigits: 2 }), styles: { halign: 'right', fontStyle: 'bold' } }]] : []),
+                            [{ content: 'Grand Total', colSpan: colIdx - 1, styles: { halign: 'right', fontStyle: 'bold' } }, { content: doc.total_amount.toLocaleString('en-IN', { minimumFractionDigits: 2 }), styles: { halign: 'right', fontStyle: 'bold' } }]
                         ],
                         theme: 'grid',
                         headStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], lineWidth: 0.1, fontStyle: 'bold', fontSize: 7, font: 'Poppins' },
                         footStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], lineWidth: 0.1, fontSize: 7, font: 'Poppins' },
                         styles: { fontSize: 7, cellPadding: 2, lineColor: [0, 0, 0], lineWidth: 0.1, font: 'Poppins' },
-                        columnStyles: baseColStyles,
-                        margin: { left: margin, right: margin }
+                        columnStyles: baseColStyles, margin: { left: margin, right: margin }
                     });
 
-                    let finalY = pdf.lastAutoTable.finalY;
+                    return { finalY: pdf.lastAutoTable.finalY, isInterState };
+                },
 
-
-                    finalY += 5;
-
-                    // Amount in Words
-                    const wordBoxHeight = 10;
-                    pdf.setLineWidth(0.1);
-                    pdf.rect(margin, finalY, pageWidth - (margin * 2), wordBoxHeight);
-                    pdf.setFontSize(8);
-                    pdf.setFont('Poppins', 'normal');
-                    pdf.text(`Amount Chargeable (in words): ${doc.currency || 'INR'} ${numberToWords(doc.total_amount, doc.currency)}`, margin + 2, finalY + 6.5);
-                    pdf.setFontSize(8);
-                    pdf.setFont('Poppins', 'bolditalic');
-                    pdf.text('E & O.E', pageWidth - margin - 15, finalY + 6.5);
-
-                    finalY += wordBoxHeight;
-
-                    // HSN Summary Table - Improved styling and grid lines
+                renderHSNSummary: (pdf, items, isInterState, startY, margin, exchangeRate = 1.0) => {
                     const hsnSummary = items.reduce((acc, item) => {
                         const hsn = item.products?.hsn || '-';
                         const taxableBase = item.qty * item.rate * (1 - (item.discount || 0) / 100);
                         const taxable = taxableBase * exchangeRate;
                         const rate = item.products?.gst || 0;
                         const tax = (taxable * rate) / 100;
-
                         if (!acc[hsn]) acc[hsn] = { taxable: 0, tax: 0, rate };
                         acc[hsn].taxable += taxable;
                         acc[hsn].tax += tax;
@@ -8382,212 +8596,103 @@ try {
                     });
 
                     pdf.autoTable({
-                        startY: finalY,
-                        head: [[
-                            { content: 'HSN/SAC', rowSpan: 2 },
-                            { content: 'Taxable Value', rowSpan: 2 },
-                            { content: 'Central Tax', colSpan: 2 },
-                            { content: 'State Tax', colSpan: 2 },
-                            { content: 'Total Tax Amount', rowSpan: 2 }
-                        ], ['Rate', 'Amount', 'Rate', 'Amount']],
+                        startY,
+                        head: [[{ content: 'HSN/SAC', rowSpan: 2 }, { content: 'Taxable Value', rowSpan: 2 }, { content: 'Central Tax', colSpan: 2 }, { content: 'State Tax', colSpan: 2 }, { content: 'Total Tax Amount', rowSpan: 2 }], ['Rate', 'Amount', 'Rate', 'Amount']],
                         body: hsnRows,
                         theme: 'grid',
                         headStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], lineWidth: 0.1, fontSize: 7, halign: 'center', fontStyle: 'bold', font: 'Poppins' },
                         styles: { fontSize: 7, halign: 'right', lineColor: [0, 0, 0], lineWidth: 0.1, cellPadding: 2, font: 'Poppins' },
-                        columnStyles: {
-                            0: { halign: 'left', cellWidth: 30 },
-                            1: { cellWidth: 35 },
-                            2: { cellWidth: 20 },
-                            3: { cellWidth: 25 },
-                            4: { cellWidth: 20 },
-                            5: { cellWidth: 25 },
-                            6: { cellWidth: 'auto' }
-                        },
+                        columnStyles: { 0: { halign: 'left', cellWidth: 30 }, 1: { cellWidth: 35 }, 2: { cellWidth: 20 }, 3: { cellWidth: 25 }, 4: { cellWidth: 20 }, 5: { cellWidth: 25 }, 6: { cellWidth: 'auto' } },
                         margin: { left: margin, right: margin }
                     });
 
-                    finalY = pdf.lastAutoTable.finalY + 5;
+                    return pdf.lastAutoTable.finalY;
+                },
 
-                    // Custom Specifications Table (if any)
-                    if ((type === 'proforma' || type === 'quotations') && doc.metadata?.custom_fields && doc.metadata.custom_fields.length > 0) {
-                        if (finalY + 20 > pageHeight - 60) { pdf.addPage(); finalY = margin; }
-
-                        pdf.setFontSize(8);
-                        pdf.setFont('Poppins', 'bold');
-                        pdf.text('Custom Specifications:', margin, finalY + 4);
-
-                        const cfRows = doc.metadata.custom_fields.map(cf => [cf.name, cf.value]);
-                        pdf.autoTable({
-                            startY: finalY + 6,
-                            head: [['Field Name / Specification', 'Value / Details']],
-                            body: cfRows,
-                            theme: 'grid',
-                            headStyles: { fillColor: [245, 245, 245], textColor: [0, 0, 0], lineWidth: 0.1, fontSize: 7, fontStyle: 'bold', font: 'Poppins' },
-                            styles: { fontSize: 7, lineColor: [0, 0, 0], lineWidth: 0.1, cellPadding: 2, font: 'Poppins' },
-                            margin: { left: margin, right: margin }
-                        });
-                        finalY = pdf.lastAutoTable.finalY + 5;
-                    } else {
-                        finalY = pdf.lastAutoTable.finalY + 5;
-                    }
-
-                    // Custom Fields Section (if any)
-                    if (doc.custom_fields && Array.isArray(doc.custom_fields) && doc.custom_fields.length > 0) {
-                        const customFieldsHeight = 5 + (doc.custom_fields.length * 5);
-                        if (finalY + customFieldsHeight > pageHeight - 60) {
-                            pdf.addPage();
-                            finalY = margin;
-                        }
-
-                        pdf.setLineWidth(0.1);
-                        pdf.rect(margin, finalY, pageWidth - (margin * 2), customFieldsHeight);
-
-                        pdf.setFontSize(7);
-                        pdf.setFont('Poppins', 'bold');
-                        pdf.text('Additional Information:', margin + 2, finalY + 4);
-
-                        pdf.setFont('Poppins', 'normal');
-                        let cfY = finalY + 9;
-                        doc.custom_fields.forEach(cf => {
-                            if (cf.name && cf.value) {
-                                pdf.setFont('Poppins', 'bold');
-                                pdf.text(`${cf.name}:`, margin + 2, cfY);
-                                pdf.setFont('Poppins', 'normal');
-                                pdf.text(cf.value, margin + 40, cfY);
-                                cfY += 5;
-                            }
-                        });
-
-                        finalY += customFieldsHeight + 2;
-                    }
-
-                    // Footer Row 1: Bank Details & QR & Signature
+                renderFooter: (pdf, doc, settings, startY, margin, pageWidth, pageHeight, options) => {
+                    let finalY = startY;
                     const footerHeight = 45;
                     if (finalY + footerHeight > pageHeight - 20) { pdf.addPage(); finalY = margin; }
+
                     pdf.setLineWidth(0.1);
                     pdf.rect(margin, finalY, pageWidth - (margin * 2), footerHeight);
 
-                    // Bank Details - Based on Transaction Type
+                    // Bank Details
                     pdf.setFontSize(7);
                     pdf.setFont('Poppins', 'bold');
                     pdf.text('Bank Details:', margin + 2, finalY + 6);
                     pdf.setFont('Poppins', 'normal');
-                    // Use USD bank for LUT/Export, INR bank for Regular and Without GST
                     const bankPrefix = (doc.type === 'LUT / Export') ? 'bank_usd' : 'bank_inr';
                     pdf.text(`Bank Name:`, margin + 2, finalY + 12);
                     pdf.text(settings[`${bankPrefix}_name`] || '-', margin + 30, finalY + 12);
                     pdf.text(`Account No:`, margin + 2, finalY + 17);
                     pdf.text(settings[`${bankPrefix}_acc_no`] || '-', margin + 30, finalY + 17);
                     const isUsd = bankPrefix === 'bank_usd';
-                    const codeLabel = isUsd ? 'SWIFT Code:' : 'IFSC Code:';
-                    const codeField = isUsd ? 'swift' : 'ifsc';
-                    pdf.text(codeLabel, margin + 2, finalY + 22);
-                    pdf.text(settings[`${bankPrefix}_${codeField}`] || '-', margin + 30, finalY + 22);
+                    pdf.text(isUsd ? 'SWIFT Code:' : 'IFSC Code:', margin + 2, finalY + 22);
+                    pdf.text(settings[`${bankPrefix}_${isUsd ? 'swift' : 'ifsc'}`] || '-', margin + 30, finalY + 22);
                     pdf.text(`Branch:`, margin + 2, finalY + 27);
                     pdf.text(settings[`${bankPrefix}_branch`] || '-', margin + 30, finalY + 27);
 
-
-
-                    // Logic for elements based on type
-                    const isInvoice = type === 'invoices';
-                    const showSignature = !isInvoice && includeSignature;
-                    const showRevenueStamp = isInvoice && includeRevenueStamp;
-                    const showCompanyStamp = includeCompanyStamp;
-
-                    // Signature Line (Right)
+                    // Signature & Stamps
+                    const displayName = settings.company_name?.startsWith('M/s') ? settings.company_name : `M/s ${settings.company_name || 'LaGa Systems'}`;
                     pdf.setFontSize(8);
                     pdf.setFont('Poppins', 'bold');
-                    const companyName = settings.company_name || 'LaGa Systems';
-                    // Ensure "M/s" is present if not already there
-                    const displayName = companyName.startsWith('M/s') ? companyName : `M/s ${companyName}`;
                     pdf.text(`For ${displayName}`, pageWidth - margin - 2, finalY + 8, { align: 'right' });
 
-                    // Company Stamp (Common for all, placed to left of signature block)
-                    if (settings.stamp && showCompanyStamp) {
-                        try {
-                            const stumpX = pageWidth - margin - 65; // Left of signature
-                            const stumpY = finalY + 11;
-                            pdf.addImage(settings.stamp, 'PNG', stumpX, stumpY, 25, 25);
-                        } catch (e) {
-                            console.warn('Company stamp add failed', e);
-                        }
+                    if (settings.stamp && options.includeCompanyStamp) {
+                        try { pdf.addImage(settings.stamp, 'PNG', pageWidth - margin - 65, finalY + 11, 25, 25); } catch (e) { }
                     }
-
-                    // Revenue Stamp (Tax Invoices Only)
-                    if (settings.revenue_stamp && showRevenueStamp) {
-                        try {
-                            // Moved to signature position
-                            const stampWidth = 33; // Increased from 30
-                            const stampHeight = 25; // Increased from 30
-                            const revX = pageWidth - margin - 5 - stampWidth; // Adjusted for larger width
-                            const revY = finalY + 12; // Slightly adjusted height
-                            pdf.addImage(settings.revenue_stamp, 'PNG', revX, revY, stampWidth, stampHeight);
-                        } catch (e) {
-                            console.warn('Revenue stamp add failed', e);
-                        }
+                    if (settings.revenue_stamp && options.showRevenueStamp) {
+                        try { pdf.addImage(settings.revenue_stamp, 'PNG', pageWidth - margin - 38, finalY + 12, 33, 25); } catch (e) { }
                     }
-
-                    // Authorized Signature (Quotations & Pro Forma Only)
-                    if (showSignature) {
-                        const sigX = pageWidth - margin - 33;
-                        const sigY = finalY + 10;
-                        const sigW = 30;
-                        const sigH = 20;
-
-                        if (settings.signature) {
-                            try {
-                                pdf.addImage(settings.signature, 'PNG', sigX, sigY, sigW, sigH);
-                            } catch (e) {
-                                pdf.rect(sigX, sigY, sigW, sigH);
-                                pdf.setFontSize(6);
-                                pdf.text('AUTHORIZED SIGNATORY', sigX + 20, sigY + 18, { align: 'center' });
-                            }
-                        } else {
-                            pdf.rect(sigX, sigY, sigW, sigH);
-                            pdf.setFontSize(6);
-                            pdf.text('AUTHORIZED SIGNATORY', sigX + 20, sigY + 18, { align: 'center' });
-                        }
+                    if (options.showSignature && settings.signature) {
+                        try { pdf.addImage(settings.signature, 'PNG', pageWidth - margin - 33, finalY + 10, 30, 20); } catch (e) { }
                     }
 
                     pdf.setFontSize(7);
                     pdf.text('Authorized Signatory', pageWidth - margin - 2, finalY + 40, { align: 'right' });
 
-                    finalY += footerHeight + 5;
+                    return finalY + footerHeight;
+                },
 
-                    // Notes & Terms
-                    pdf.setFont('Poppins', 'normal');
-                    const splitTerms = pdf.splitTextToSize(doc.terms || '1. Goods once sold cannot be taken back.\n2. Subject to local Jurisdiction.', pageWidth - (margin * 2) - 4);
-
-                    const termsLineHeight = 3.5;
-                    // Header takes about 5-7 units. Text starts at 10.
-                    // Height = 9 (top padding + header) + (lines * line height) + 2 (bottom padding)
-                    const termsBoxHeight = 9 + (splitTerms.length * termsLineHeight) + 2;
-
+                renderTerms: (pdf, doc, startY, margin, pageWidth, pageHeight) => {
+                    const fallbackTerms = "1. Software Warranty:\nThe software is warranted against any design defects as per the specified requirements for a period of one (1) year from the date of supply. During the warranty period, you will be entitled to free software upgrades and technical support.\n\n2. Equipment Warranty:\nThe equipment carries a warranty of one (1) year from the date of supply. The warranty will be void in the event of misuse, mishandling, unauthorized modifications, or physical damage to the equipment.\n\n3. Installation and Training:\nPlease note that the above-mentioned price does not include physical installation and training services. These services can be provided separately upon request at an additional cost.";
+                    const splitTerms = pdf.splitTextToSize(doc.terms || fallbackTerms, pageWidth - (margin * 2) - 4);
+                    const termsBoxHeight = 9 + (splitTerms.length * 3.5) + 2;
+                    let finalY = startY;
                     if (finalY + termsBoxHeight > pageHeight - 10) { pdf.addPage(); finalY = margin; }
 
                     pdf.setLineWidth(0.1);
                     pdf.rect(margin, finalY, pageWidth - (margin * 2), termsBoxHeight);
-
                     pdf.setFont('Poppins', 'bold');
                     pdf.text('Terms and Conditions:', margin + 2, finalY + 5);
-
                     pdf.setFont('Poppins', 'normal');
                     pdf.text(splitTerms, margin + 2, finalY + 9);
 
-                    // Bottom page flag
-                    pdf.setFontSize(6);
-                    const now = new Date();
-                    const printDateStr = now.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) + ' ' + now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
-                    const genDate = new Date(doc.date);
-                    const genDateStr = genDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+                    // Dynamic Pagination & Footer (Applied to ALL pages)
+                    const totalPages = pdf.internal.getNumberOfPages();
                     const userStr = state.user?.email || 'User';
-                    pdf.text(`Page 1/1   Generated on ${genDateStr} | Printed by ${userStr} on ${printDateStr}`, margin, pageHeight - 5);
+                    const now = new Date();
+                    const printDateStr = now.toLocaleDateString('en-IN') + ' ' + now.toLocaleTimeString('en-IN');
 
-                    // Display PDF in embedded modal viewer
-                    const pdfBlob = pdf.output('blob');
+                    for (let i = 1; i <= totalPages; i++) {
+                        pdf.setPage(i);
+                        pdf.setFontSize(6);
+                        pdf.setFont('Poppins', 'normal');
+                        pdf.setTextColor(100);
+                        pdf.text(`Page ${i}/${totalPages} | Printed by ${userStr} on ${printDateStr}`, margin, pageHeight - 5);
+                    }
+                },
+
+                renderPreview: (type, id, doc, items, options) => {
+                    const { doc: data, items: list } = { doc, items };
+                    const pdfBlob = options.pdf.output('blob');
                     const pdfUrl = URL.createObjectURL(pdfBlob);
+                    const title = api.docs.pdfModel.getTitle(type);
+                    const docNumber = doc.invoice_no || doc.doc_no || doc.quotation_no || doc.id.slice(0, 8);
+                    const filename = `${docNumber}.pdf`;
+                    const isInvoice = type === 'invoices';
 
-                    // Create modal with embedded PDF viewer
                     const modal = document.createElement('div');
                     modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 9999; display: flex; align-items: center; justify-content: center;';
 
@@ -8596,32 +8701,28 @@ try {
 
                     const header = document.createElement('div');
                     header.style.cssText = 'padding: 16px; background: #f8f9fa; border-bottom: 1px solid #dee2e6; display: flex; justify-content: space-between; align-items: center;';
-                    const docNumber = doc.invoice_no || doc.doc_no || doc.quotation_no || doc.id.slice(0, 8);
-                    const filename = `${docNumber}.pdf`;
+
                     header.innerHTML = `
-                                                    <h3 style="margin: 0; font-size: 18px; font-weight: 600;">${titleMap[type]} - ${docNumber}</h3>
-                                                    <div style="display: flex; gap: 12px; align-items: center;">
-                                                        ${!isInvoice ? `
-                                                        <label style="display: flex; align-items: center; gap: 6px; font-size: 14px; cursor: pointer;">
-                                                            <input type="checkbox" id="signature-toggle" ${includeSignature ? 'checked' : ''} style="cursor: pointer; width: 16px; height: 16px;">
-                                                            <span style="font-weight: 500;">Signature</span>
-                                                        </label>` : ''}
-                                                        
-                                                        ${isInvoice ? `
-                                                        <label style="display: flex; align-items: center; gap: 6px; font-size: 14px; cursor: pointer;">
-                                                            <input type="checkbox" id="revenue-toggle" ${includeRevenueStamp ? 'checked' : ''} style="cursor: pointer; width: 16px; height: 16px;">
-                                                            <span style="font-weight: 500;">Revenue Stamp</span>
-                                                        </label>` : ''}
-
-                                                        <label style="display: flex; align-items: center; gap: 6px; font-size: 14px; cursor: pointer;">
-                                                            <input type="checkbox" id="company-stamp-toggle" ${includeCompanyStamp ? 'checked' : ''} style="cursor: pointer; width: 16px; height: 16px;">
-                                                            <span style="font-weight: 500;">Company Stamp</span>
-                                                        </label>
-
-                                                        <a href="${pdfUrl}" download="${filename}" style="padding: 8px 16px; background: #0066cc; color: white; text-decoration: none; border-radius: 6px; font-size: 14px; font-weight: 600;">Download PDF</a>
-                                                        <button onclick="this.closest('[style*=fixed]').remove(); URL.revokeObjectURL('${pdfUrl}')" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #6c757d;">&times;</button>
-                                                    </div>
-                                                    `;
+                        <h3 style="margin: 0; font-size: 18px; font-weight: 600;">${title} - ${docNumber}</h3>
+                        <div style="display: flex; gap: 12px; align-items: center;">
+                            ${!isInvoice ? `
+                            <label style="display: flex; align-items: center; gap: 6px; font-size: 14px; cursor: pointer;">
+                                <input type="checkbox" id="signature-toggle" ${options.includeSignature ? 'checked' : ''} style="cursor: pointer; width: 16px; height: 16px;">
+                                <span style="font-weight: 500;">Signature</span>
+                            </label>` : ''}
+                            ${isInvoice ? `
+                            <label style="display: flex; align-items: center; gap: 6px; font-size: 14px; cursor: pointer;">
+                                <input type="checkbox" id="revenue-toggle" ${options.includeRevenueStamp ? 'checked' : ''} style="cursor: pointer; width: 16px; height: 16px;">
+                                <span style="font-weight: 500;">Revenue Stamp</span>
+                            </label>` : ''}
+                            <label style="display: flex; align-items: center; gap: 6px; font-size: 14px; cursor: pointer;">
+                                <input type="checkbox" id="company-stamp-toggle" ${options.includeCompanyStamp ? 'checked' : ''} style="cursor: pointer; width: 16px; height: 16px;">
+                                <span style="font-weight: 500;">Company Stamp</span>
+                            </label>
+                            <a href="${pdfUrl}" download="${filename}" style="padding: 8px 16px; background: #0066cc; color: white; text-decoration: none; border-radius: 6px; font-size: 14px; font-weight: 600;">Download PDF</a>
+                            <button class="close-pdf-modal" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #6c757d;">&times;</button>
+                        </div>
+                    `;
 
                     const iframe = document.createElement('iframe');
                     iframe.src = pdfUrl;
@@ -8632,38 +8733,96 @@ try {
                     modal.appendChild(modalContent);
                     document.body.appendChild(modal);
 
-                    // Add event listeners
-                    const signatureToggle = header.querySelector('#signature-toggle');
-                    if (signatureToggle) {
-                        signatureToggle.addEventListener('change', async (e) => {
-                            modal.remove(); URL.revokeObjectURL(pdfUrl);
-                            await api.docs.generatePDF(type, id, e.target.checked, includeRevenueStamp, includeCompanyStamp);
-                        });
+                    const reRender = async () => {
+                        modal.remove();
+                        URL.revokeObjectURL(pdfUrl);
+                        const sig = header.querySelector('#signature-toggle')?.checked ?? options.includeSignature;
+                        const rev = header.querySelector('#revenue-toggle')?.checked ?? options.includeRevenueStamp;
+                        const co = header.querySelector('#company-stamp-toggle')?.checked ?? options.includeCompanyStamp;
+                        await api.docs.generatePDF(type, id, sig, rev, co);
+                    };
+
+                    header.querySelector('#signature-toggle')?.addEventListener('change', reRender);
+                    header.querySelector('#revenue-toggle')?.addEventListener('change', reRender);
+                    header.querySelector('#company-stamp-toggle')?.addEventListener('change', reRender);
+                    header.querySelector('.close-pdf-modal').onclick = () => { modal.remove(); URL.revokeObjectURL(pdfUrl); };
+                    modal.onclick = (e) => { if (e.target === modal) { modal.remove(); URL.revokeObjectURL(pdfUrl); } };
+                }
+            },
+
+            generatePDF: async (type, id, includeSignature = true, includeRevenueStamp = true, includeCompanyStamp = true) => {
+                try {
+                    const model = api.docs.pdfModel;
+                    const { doc, items } = await model.fetchData(type, id);
+                    const settings = state.settings || {};
+
+                    // Metadata Preference
+                    let finalIncludeSignature = includeSignature;
+                    if (doc.metadata && doc.metadata.include_signature !== undefined && includeSignature === true) {
+                        finalIncludeSignature = doc.metadata.include_signature;
                     }
 
-                    const revenueToggle = header.querySelector('#revenue-toggle');
-                    if (revenueToggle) {
-                        revenueToggle.addEventListener('change', async (e) => {
-                            modal.remove(); URL.revokeObjectURL(pdfUrl);
-                            await api.docs.generatePDF(type, id, includeSignature, e.target.checked, includeCompanyStamp);
+                    const pdf = model.initPDF(type, doc, settings);
+                    const pageWidth = pdf.internal.pageSize.width;
+                    const pageHeight = pdf.internal.pageSize.height;
+                    const margin = 10;
+
+                    // Header
+                    const { dynamicHeaderHeight } = model.renderHeader(pdf, doc, type, settings, margin, pageWidth);
+
+                    // Addresses
+                    const custBoxHeight = model.renderAddresses(pdf, doc, margin + 10 + dynamicHeaderHeight, margin, pageWidth);
+
+                    // Line Items
+                    const { finalY, isInterState } = model.renderLineItems(pdf, items, doc, settings, margin + 10 + dynamicHeaderHeight + custBoxHeight, margin);
+
+                    // Amount in Words
+                    pdf.setLineWidth(0.1);
+                    pdf.rect(margin, finalY, pageWidth - (margin * 2), 10);
+                    pdf.setFontSize(8);
+                    pdf.text(`Amount Chargeable (in words): ${doc.currency || 'INR'} ${numberToWords(doc.total_amount, doc.currency)}`, margin + 2, finalY + 6.5);
+                    pdf.setFont('Poppins', 'bolditalic');
+                    pdf.text('E & O.E', pageWidth - margin - 15, finalY + 6.5);
+
+                    // HSN Summary
+                    const hsnY = model.renderHSNSummary(pdf, items, isInterState, finalY + 10, margin, parseFloat(doc.exchange_rate) || 1.0);
+
+                    // Custom Specs/Fields
+                    let nextY = hsnY;
+                    const customFieldRows = doc.custom_fields || [];
+                    if (customFieldRows.length > 0) {
+                        const h = 5 + (customFieldRows.length * 5);
+                        if (nextY + h > pageHeight - 60) { pdf.addPage(); nextY = margin; }
+                        pdf.rect(margin, nextY, pageWidth - (margin * 2), h);
+                        pdf.setFontSize(7); pdf.setFont('Poppins', 'bold');
+                        pdf.text('Additional Information:', margin + 2, nextY + 4);
+                        pdf.setFont('Poppins', 'normal');
+                        let cfY = nextY + 9;
+                        customFieldRows.forEach(cf => {
+                            if (cf.name && cf.value) {
+                                pdf.setFont('Poppins', 'bold'); pdf.text(`${cf.name}:`, margin + 2, cfY);
+                                pdf.setFont('Poppins', 'normal'); pdf.text(cf.value, margin + 40, cfY);
+                                cfY += 5;
+                            }
                         });
+                        nextY += h + 2;
                     }
 
-                    const companyStampToggle = header.querySelector('#company-stamp-toggle');
-                    if (companyStampToggle) {
-                        companyStampToggle.addEventListener('change', async (e) => {
-                            modal.remove(); URL.revokeObjectURL(pdfUrl);
-                            await api.docs.generatePDF(type, id, includeSignature, includeRevenueStamp, e.target.checked);
-                        });
-                    }
-
-                    // Close on background click
-                    modal.addEventListener('click', (e) => {
-                        if (e.target === modal) {
-                            modal.remove();
-                            URL.revokeObjectURL(pdfUrl);
-                        }
+                    // Footer
+                    const footerY = model.renderFooter(pdf, doc, settings, nextY, margin, pageWidth, pageHeight, {
+                        showSignature: !(type === 'invoices') && finalIncludeSignature,
+                        showRevenueStamp: (type === 'invoices') && includeRevenueStamp,
+                        includeCompanyStamp: includeCompanyStamp
                     });
+
+                    // Terms
+                    model.renderTerms(pdf, doc, footerY, margin, pageWidth, pageHeight);
+
+                    // Preview
+                    model.renderPreview(type, id, doc, items, {
+                        pdf, includeSignature: finalIncludeSignature, includeRevenueStamp, includeCompanyStamp
+                    });
+
                 } catch (err) {
                     console.error('PDF Error:', err);
                     alert('PDF Generation failed: ' + err.message);
