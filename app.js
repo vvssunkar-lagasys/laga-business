@@ -2037,13 +2037,15 @@ try {
         `,
         Licenses: (items, filters = {}) => {
             const now = new Date();
+            now.setHours(0, 0, 0, 0); // Start of today for comparison
+
             const startOfWeek = new Date(now);
             startOfWeek.setDate(now.getDate() - now.getDay());
             const endOfWeek = new Date(startOfWeek);
             endOfWeek.setDate(startOfWeek.getDate() + 6);
+            endOfWeek.setHours(23, 59, 59, 999);
 
-            const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-            const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+            const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
 
             const searchQuery = (ui.licenses.searchQuery || '').toLowerCase();
 
@@ -2051,7 +2053,14 @@ try {
             let filteredItems = items.filter(i => {
                 const matchCategory = !filters.category || i.category === filters.category;
                 const matchType = !filters.type || i.type === filters.type;
-                const matchStatus = !filters.status || i.status === filters.status;
+
+                // Refined Status Logic: "Expiring Soon" shows expiring this month
+                let matchStatus = !filters.status || i.status === filters.status;
+                if (filters.status === 'Expiring Soon') {
+                    const ed = new Date(i.end_date);
+                    matchStatus = ed >= now && ed <= endOfMonth;
+                }
+
                 const matchSearch = !searchQuery ||
                     (i.software_name || '').toLowerCase().includes(searchQuery) ||
                     (i.serial_number || '').toLowerCase().includes(searchQuery) ||
@@ -4558,12 +4567,13 @@ try {
 
                 const ed = new Date(endDate);
                 const now = new Date();
-                const diffDays = Math.ceil((ed - now) / (1000 * 60 * 60 * 24));
+                now.setHours(0, 0, 0, 0);
+                const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
 
-                if (diffDays < 0) {
+                if (ed < now) {
                     badge.textContent = 'Expired';
                     badge.className = 'bg-rose-100 text-rose-700 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest';
-                } else if (diffDays <= 30) {
+                } else if (ed <= endOfMonth) {
                     badge.textContent = 'Expiring Soon';
                     badge.className = 'bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest';
                 } else {
@@ -7482,11 +7492,15 @@ try {
 
                     data.user_id = state.user.id;
 
-                    // Calculate status before saving
+                    // Calculate status before saving: Expiring Soon = Expires within current month
                     const ed = new Date(data.end_date);
                     const now = new Date();
-                    const diffDays = Math.ceil((ed - now) / (1000 * 60 * 60 * 24));
-                    data.status = diffDays < 0 ? 'Expired' : (diffDays <= 30 ? 'Expiring Soon' : 'Active');
+                    now.setHours(0, 0, 0, 0);
+                    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+
+                    if (ed < now) data.status = 'Expired';
+                    else if (ed <= endOfMonth) data.status = 'Expiring Soon';
+                    else data.status = 'Active';
 
                     const { error } = await supabaseClient.from('licenses').upsert(data);
                     if (error) throw error;
