@@ -8418,6 +8418,9 @@ try {
                     const leftBoxHeight = lastTextY - (margin + 10);
 
                     const detailsLineHeight = 4.5;
+                    const labelOffset = 32;
+                    pdf.setFontSize(8);
+                    pdf.setFont('Poppins', 'normal');
                     const visibleDetails = [
                         { label: `${type === 'quotations' ? 'Quotation' : type === 'proforma' ? 'Pro Forma Invoice' : 'Invoice'} No:`, value: doc.invoice_no || doc.doc_no || doc.quotation_no || doc.id.slice(0, 8), bold: true },
                         { label: 'Dated:', value: formatDate(doc.date) },
@@ -8427,8 +8430,19 @@ try {
                         { label: 'Payment Terms:', value: doc.payment_terms || '-' },
                         { label: 'Delivery Time:', value: doc.delivery_time || '-' },
                         { label: 'Delivery Mode:', value: doc.delivery_mode || '-' }
-                    ].filter(d => !d.hide);
-                    const rightBoxHeight = 6 + (visibleDetails.length * detailsLineHeight) + 1.5;
+                    ].filter(d => !d.hide).map(d => {
+                        if (d.bold) {
+                            pdf.setFont('Poppins', 'bold');
+                            d.splitVal = pdf.splitTextToSize(String(d.value), leftBoxWidth - labelOffset - 7);
+                            pdf.setFont('Poppins', 'normal');
+                        } else {
+                            d.splitVal = pdf.splitTextToSize(String(d.value), leftBoxWidth - labelOffset - 7);
+                        }
+                        return d;
+                    });
+                    let totalLines = 0;
+                    visibleDetails.forEach(d => totalLines += d.splitVal.length);
+                    const rightBoxHeight = 6 + (totalLines * detailsLineHeight) + 1.5;
 
                     const dynamicHeaderHeight = Math.max(leftBoxHeight, rightBoxHeight);
 
@@ -8471,7 +8485,6 @@ try {
 
                     // Document Details Box (Right Half Content)
                     const detailX = rightBoxX + 5;
-                    const labelOffset = 32;
                     let currentY = margin + 17.5;
 
                     visibleDetails.forEach((detail) => {
@@ -8479,8 +8492,8 @@ try {
                         pdf.setFont('Poppins', 'normal');
                         pdf.text(detail.label, detailX, currentY);
                         if (detail.bold) pdf.setFont('Poppins', 'bold');
-                        pdf.text(detail.value, detailX + labelOffset, currentY);
-                        currentY += detailsLineHeight;
+                        pdf.text(detail.splitVal, detailX + labelOffset, currentY);
+                        currentY += detail.splitVal.length * detailsLineHeight;
                     });
 
                     return { dynamicHeaderHeight, rightBoxX };
