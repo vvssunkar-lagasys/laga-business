@@ -161,6 +161,11 @@ try {
     const setupGlobalListeners = () => {
         el.loginForm?.addEventListener('submit', handleLogin);
         document.getElementById('logout-btn')?.addEventListener('click', handleLogout);
+        
+        // Sidebar Toggle
+        document.getElementById('sidebar-toggle')?.addEventListener('click', () => {
+            el.mainRoot.classList.toggle('sidebar-collapsed');
+        });
         window.addEventListener('hashchange', () => {
             state.view = window.location.hash.slice(1) || 'dashboard';
             render();
@@ -393,7 +398,7 @@ try {
                     </div>
                     <div class="stat-content">
                         <p class="stat-label">Total Sales</p>
-                        <h4 class="stat-value">₹${data.sales.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</h4>
+                        <h4 class="stat-value tabular-nums">₹${data.sales.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</h4>
                     </div>
                 </div>
 
@@ -406,7 +411,7 @@ try {
                     </div>
                     <div class="stat-content">
                         <p class="stat-label">Tax Collected</p>
-                        <h4 class="stat-value">₹${data.tax.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</h4>
+                        <h4 class="stat-value tabular-nums">₹${data.tax.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</h4>
                         <div class="stat-progress">
                             <div class="progress-bar">
                                 <div class="progress-fill" style="width: ${Math.min(100, (data.tax / data.sales * 100))}%"></div>
@@ -425,7 +430,7 @@ try {
                     </div>
                     <div class="stat-content">
                         <p class="stat-label">Total Quotations</p>
-                        <h4 class="stat-value">${quotations.length}</h4>
+                        <h4 class="stat-value tabular-nums">${quotations.length}</h4>
                         <p class="stat-subtitle">Drafts & Sent</p>
                     </div>
                 </div>
@@ -439,7 +444,7 @@ try {
                     </div>
                     <div class="stat-content">
                         <p class="stat-label">Total Invoices</p>
-                        <h4 class="stat-value">${totalInvoices}</h4>
+                        <h4 class="stat-value tabular-nums">${totalInvoices}</h4>
                         <div class="stat-breakdown">
                             <span class="breakdown-item paid">${paidInvoices} Paid</span>
                             <span class="breakdown-item pending">${pendingInvoices} Pending</span>
@@ -461,7 +466,7 @@ try {
                             <p class="currency-count">${inrInvoices.length} invoices</p>
                         </div>
                     </div>
-                    <h3 class="currency-amount">₹${inrRevenue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</h3>
+                    <h3 class="currency-amount tabular-nums">₹${inrRevenue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</h3>
                     <div class="currency-chart">
                         <div class="mini-bar" style="width: ${inrRevenue > 0 ? '100%' : '0%'}"></div>
                     </div>
@@ -476,7 +481,7 @@ try {
                             <p class="currency-count">${usdInvoices.length} invoices</p>
                         </div>
                     </div>
-                    <h3 class="currency-amount">$${usdRevenue.toLocaleString('en-US', { maximumFractionDigits: 0 })}</h3>
+                    <h3 class="currency-amount tabular-nums">$${usdRevenue.toLocaleString('en-US', { maximumFractionDigits: 0 })}</h3>
                     <div class="currency-chart">
                         <div class="mini-bar usd" style="width: ${usdRevenue > 0 ? '100%' : '0%'}"></div>
                     </div>
@@ -498,89 +503,6 @@ try {
             </div>
         `;
         },
-        Products: (items, filter = 'Items') => `
-        <div class="animate-fade-in">
-            <div class="dashboard-header">
-                <div class="dashboard-title">
-                    <h2 class="text-2xl font-bold">Products & Services</h2>
-                </div>
-            </div>
-
-            <div class="status-tabs">
-                <div class="tab-item ${filter === 'Items' ? 'active' : ''}" onclick="ui.products.setFilter('Items')">Items <span class="tab-count">${items.length}</span></div>
-                <div class="tab-item ${filter === 'Categories' ? 'active' : ''}" onclick="ui.products.setFilter('Categories')">Categories</div>
-                <div class="tab-item ${filter === 'Groups' ? 'active' : ''}" onclick="ui.products.setFilter('Groups')">Groups</div>
-                <div class="tab-item ${filter === 'Price Lists' ? 'active' : ''}" onclick="ui.products.setFilter('Price Lists')">Price Lists</div>
-                <div class="tab-item ${filter === 'Deleted' ? 'active' : ''}" onclick="ui.products.setFilter('Deleted')">Deleted</div>
-            </div>
-
-            <div class="toolbar">
-                <div class="search-container">
-                    <svg class="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-                    <input type="text" class="form-input search-input" placeholder="Search products, category, description, barcode..." value="${ui.products.searchQuery || ''}" oninput="ui.products.search(this.value)">
-                </div>
-                <div class="ml-auto flex items-center gap-2">
-                    <button onclick="ui.modal.open('product')" class="bg-[#3b82f6] text-white px-6 py-2 rounded-lg font-bold hover:bg-blue-600 transition-all">+ New Item</button>
-                </div>
-            </div>
-
-            <div class="glass rounded-2xl overflow-hidden shadow-sm">
-                <table class="w-full text-left sales-table">
-                    <thead>
-                        <tr>
-                            <th>Product Name</th>
-                            <th>Category / HSN</th>
-                            <th>Selling Price</th>
-                            <th>GST Rate</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody class="text-sm">
-                        ${items.map(i => `
-                            <tr class="product-row border-b border-slate-50 last:border-0 hover:bg-slate-50/50 transition-colors">
-                                <td class="p-4">
-                                    <div class="flex items-center gap-3">
-                                        <div class="item-avatar bg-blue-50 text-blue-600">${i.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}</div>
-                                        <div class="font-bold text-slate-900">${i.name}</div>
-                                    </div>
-                                </td>
-                                <td class="p-4">
-                                    <div class="font-medium text-slate-900">${i.type}</div>
-                                    <div class="text-[10px] text-slate-500 font-mono tracking-wider">HSN: ${i.hsn || '-'}</div>
-                                </td>
-                                <td class="p-4">
-                                    <div class="font-bold text-slate-900">${i.currency === 'USD' ? '$' : '₹'}${i.price.toLocaleString()}</div>
-                                </td>
-                                <td class="p-4">
-                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-800">
-                                        ${i.gst}%
-                                    </span>
-                                </td>
-                                <td class="p-4">
-                                    <div class="flex items-center gap-2">
-                                        ${filter === 'Deleted' ? `
-                                            <button onclick="api.masters.restore('products', '${i.id}')" class="text-slate-400 hover:text-emerald-500 transition-colors" title="Restore Product">
-                                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
-                                            </button>
-                                        ` : `
-                                            <button onclick="ui.modal.edit('product', '${i.id}')" class="text-slate-400 hover:text-blue-600 transition-colors" title="Edit Product">
-                                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
-                                            </button>
-                                        `}
-                                        <button onclick="api.masters.delete('products', '${i.id}')" class="text-slate-400 hover:text-red-500 transition-colors" title="${filter === 'Deleted' ? 'Permanent Delete' : 'Delete Product'}">
-                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                                        </button>
-                                    </div>
-                                </td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-            </div>
-
-            
-        </div>
-    `,
         Customers: (items, filter = 'All Customers') => `
         <div class="animate-fade-in">
             <div class="dashboard-header">
@@ -2350,13 +2272,19 @@ try {
         try {
             if (!state.user) return;
 
+            // Trigger View Transition
+            if (el.viewContainer) {
+                el.viewContainer.classList.remove('view-enter');
+                void el.viewContainer.offsetWidth; // Trigger reflow
+                el.viewContainer.classList.add('view-enter');
+            }
+
             // Sync Financial Year dropdown
             if (el.fySelect) el.fySelect.value = state.fy;
 
             // Update Title & Navigation
             const titles = {
                 dashboard: 'Financial Overview',
-                products: 'Catalog Master',
                 customers: 'Customer Directory',
                 invoices: 'Tax Invoices',
                 credit_notes: 'Credit Notes',
@@ -2368,7 +2296,6 @@ try {
                 purchases: 'Purchase Register',
                 purchase_orders: 'Purchase Orders',
                 debit_notes: 'Debit Notes',
-                debit_notes: 'Debit Notes',
                 reports: 'GST Filing Reports',
                 settings: 'System Settings'
             };
@@ -2376,11 +2303,9 @@ try {
 
             document.querySelectorAll('.nav-link').forEach(link => {
                 if (link.getAttribute('href') === '#' + state.view) {
-                    link.classList.add('bg-slate-800', 'text-white', 'font-bold');
-                    link.classList.remove('text-slate-400');
+                    link.classList.add('active');
                 } else {
-                    link.classList.remove('bg-slate-800', 'text-white', 'font-bold');
-                    link.classList.add('text-slate-400');
+                    link.classList.remove('active');
                 }
             });
 
@@ -2394,27 +2319,6 @@ try {
                     });
                     // Initialize charts after rendering
                     ui.dashboard.initCharts();
-                    break;
-                case 'products':
-                    let products = state.products;
-
-                    // Filter by deleted status based on tab
-                    if (ui.products.filter === 'Deleted') {
-                        products = products.filter(p => p.is_deleted === true);
-                    } else {
-                        products = products.filter(p => !p.is_deleted);
-                    }
-
-                    // Apply search filter
-                    if (ui.products.searchQuery) {
-                        const q = ui.products.searchQuery.toLowerCase();
-                        products = products.filter(p =>
-                            (p.name && p.name.toLowerCase().includes(q)) ||
-                            (p.type && p.type.toLowerCase().includes(q)) ||
-                            (p.hsn && p.hsn.toLowerCase().includes(q))
-                        );
-                    }
-                    el.viewContainer.innerHTML = Templates.Products(products, ui.products.filter);
                     break;
                 case 'customers':
                     let customers = state.customers;
@@ -2559,7 +2463,12 @@ try {
                                     label: 'INR Revenue (₹)',
                                     data: inrValues,
                                     borderColor: '#3b82f6',
-                                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                                    backgroundColor: (() => {
+                                        const gradient = ctx.getContext('2d').createLinearGradient(0, 0, 0, 300);
+                                        gradient.addColorStop(0, 'rgba(59, 130, 246, 0.2)');
+                                        gradient.addColorStop(1, 'rgba(59, 130, 246, 0)');
+                                        return gradient;
+                                    })(),
                                     borderWidth: 3,
                                     fill: true,
                                     tension: 0.4,
@@ -2573,7 +2482,12 @@ try {
                                     label: 'USD Revenue ($)',
                                     data: usdValues,
                                     borderColor: '#10b981',
-                                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                                    backgroundColor: (() => {
+                                        const gradient = ctx.getContext('2d').createLinearGradient(0, 0, 0, 300);
+                                        gradient.addColorStop(0, 'rgba(16, 185, 129, 0.2)');
+                                        gradient.addColorStop(1, 'rgba(16, 185, 129, 0)');
+                                        return gradient;
+                                    })(),
                                     borderWidth: 3,
                                     fill: true,
                                     tension: 0.4,
@@ -2636,18 +2550,6 @@ try {
 
             },
 
-        },
-        products: {
-            searchQuery: '',
-            filter: 'Items',
-            search: (query) => {
-                ui.products.searchQuery = query;
-                render();
-            },
-            setFilter: (filter) => {
-                ui.products.filter = filter;
-                render();
-            }
         },
         customers: {
             searchQuery: '',
@@ -2816,51 +2718,7 @@ try {
 
 
 
-                if (type === 'product') {
-                    root.innerHTML = `
-                        <div class="modal-content bg-white p-8 rounded-3xl w-full max-w-md animate-slide-up">
-                            <h3 class="text-xl font-bold text-slate-900 mb-6 font-display">Add Product/Service</h3>
-                            <form id="product-form" class="space-y-4">
-                                <input type="hidden" name="id" id="field-id">
-                                <div><label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Item Name</label><input type="text" name="name" class="form-input" required placeholder="e.g. Industrial Sensor"></div>
-                                <div class="grid grid-cols-3 gap-4">
-                                    <div><label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">HSN/SAC</label><input type="text" name="hsn" class="form-input" required placeholder="8525"></div>
-                                    <div><label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Base Price</label><input type="number" name="price" step="0.01" class="form-input" required placeholder="0.00"></div>
-                                    <div>
-                                        <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Currency</label>
-                                        <select name="currency" class="form-input">
-                                            <option value="INR" selected>INR (₹)</option>
-                                            <option value="USD">USD ($)</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <div class="grid grid-cols-2 gap-4">
-                                    <div><label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">GST Rate (%)</label>
-                                        <select name="gst" class="form-input" required>
-                                            <option value="0">0% (Nil Rated)</option>
-                                            <option value="5">5%</option>
-                                            <option value="12">12%</option>
-                                            <option value="18" selected>18%</option>
-                                            <option value="28">28%</option>
-                                            <option value="40">40%</option>
-                                        </select>
-                                    </div>
-                                    <div><label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Category</label>
-                                        <select name="type" class="form-input">
-                                            <option value="PRODUCT">PRODUCT</option>
-                                            <option value="SERVICE">SERVICE</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <div class="flex justify-end gap-3 pt-6">
-                                    <button type="button" onclick="ui.modal.close()" class="px-6 py-2 text-slate-500 font-medium hover:text-slate-700 transition-colors">Cancel</button>
-                                    <button type="submit" class="btn-primary">Save Changes</button>
-                                </div>
-                            </form>
-                        </div>
-    `;
-                    document.getElementById('product-form').onsubmit = e => api.masters.save('products', e);
-                } else if (type === 'customer') {
+                if (type === 'customer') {
                     root.innerHTML = `
                         <div class="modal-content bg-white p-8 rounded-3xl w-full max-w-5xl max-h-[90vh] overflow-y-auto animate-slide-up">
                             <h3 class="text-2xl font-bold text-slate-900 mb-8 font-display">Add Contact/Customer</h3>
@@ -4429,7 +4287,7 @@ try {
 
             edit: (type, id) => {
                 ui.modal.open(type);
-                const table = type === 'product' ? 'products' : 'customers';
+                const table = 'customers';
                 const item = state[table].find(i => i.id === id);
                 if (item) {
                     const form = document.getElementById(`${type}-form`);
@@ -4825,10 +4683,27 @@ try {
 
                     // Fetch invoice items for HSN summary
                     const invIds = filteredInvoices.map(i => i.id);
-                    const { data: allItems } = await supabaseClient
+                    const { data: legacyItems } = await supabaseClient
                         .from('invoice_items')
-                        .select('*, products(name)')
+                        .select('*, products(name, gst, hsn)')
                         .in('invoice_id', invIds);
+
+                    const allItems = [];
+                    if (legacyItems) allItems.push(...legacyItems.map(it => ({ ...it, _source: 'legacy' })));
+
+                    filteredInvoices.forEach(inv => {
+                        if (inv.metadata?.items && Array.isArray(inv.metadata.items)) {
+                            inv.metadata.items.forEach(it => {
+                                allItems.push({
+                                    ...it,
+                                    invoice_id: inv.id,
+                                    hsn_code: it.hsn,
+                                    product_name: it.product_name,
+                                    _source: 'json'
+                                });
+                            });
+                        }
+                    });
 
                     const myState = state.settings?.state;
 
@@ -4870,7 +4745,7 @@ try {
                     });
 
                     // Build HSN summary
-                    if (allItems) {
+                    if (allItems.length > 0) {
                         allItems.forEach(item => {
                             const inv = filteredInvoices.find(i => i.id === item.invoice_id);
                             if (!inv) return;
@@ -4887,7 +4762,7 @@ try {
                             if (!hsnMap[hsnCode]) {
                                 hsnMap[hsnCode] = {
                                     code: hsnCode,
-                                    desc: item.products?.name || 'Item',
+                                    desc: item.product_name || item.products?.name || 'Item',
                                     qty: 0,
                                     taxable: 0,
                                     igst: 0,
@@ -4897,8 +4772,16 @@ try {
                             }
 
                             const rowTaxable = (item.qty * item.rate * (1 - (item.discount || 0) / 100)) * exRate;
-                            const prodMain = state.products.find(p => p.id === item.product_id);
-                            const gstRate = (inv.type === 'Regular') ? (prodMain?.gst || 0) : 0;
+                            
+                            let gstRate = 0;
+                            if (inv.type === 'Regular') {
+                                if (item._source === 'legacy') {
+                                    gstRate = item.products?.gst || 0;
+                                } else {
+                                    // Use tax_rate from JSON metadata, fallback to 18
+                                    gstRate = item.tax_rate !== undefined ? item.tax_rate : (item.gst !== undefined ? item.gst : 18);
+                                }
+                            }
                             const rowTax = (rowTaxable * gstRate) / 100;
 
                             hsnMap[hsnCode].qty += item.qty;
@@ -5358,16 +5241,16 @@ try {
                 row.id = `inv-item-${id}`;
                 row.innerHTML = `
             <td class="p-3">
-        <div class="product-search-container">
-            <input type="text" class="form-input text-xs font-bold bg-transparent border-none p-0 focus:ring-0 placeholder:text-slate-300 w-full item-search"
-                placeholder="Search product..."
-                oninput="ui.invoice.filterProducts('${id}', this.value)"
-                value="${data?.product_name || ''}">
                 <input type="hidden" class="item-product-id" value="${data?.product_id || ''}">
-                    <div class="product-results-list hidden" id="results-${id}"></div>
-                </div>
+                <input type="text" class="form-input text-xs font-bold bg-transparent border-none p-0 focus:ring-0 placeholder:text-slate-300 w-full item-name"
+                    placeholder="Enter product/service name..."
+                    value="${data?.product_name || ''}">
             </td>
-            <td class="p-3"><input type="text" class="text-xs font-mono text-slate-400 bg-transparent border-none p-0 focus:ring-0 item-hsn w-full" value="${data?.hsn || ''}" readonly tabindex="-1"></td>
+            <td class="p-3">
+                <input type="text" class="text-xs font-mono text-slate-400 bg-transparent border-none p-0 focus:ring-0 item-hsn w-full" 
+                    placeholder="HSN/SAC"
+                    value="${data?.hsn || ''}">
+            </td>
             <td class="p-3"><input type="number" class="w-full text-center text-xs font-bold bg-slate-50 border border-slate-200 rounded py-1 item-qty" value="${data?.qty || 1}" oninput="ui.invoice.updateCalculations()"></td>
             <td class="p-3"><input type="number" class="w-full text-xs font-bold bg-transparent border-none p-0 focus:ring-0 item-rate" value="${data?.rate || 0}" oninput="ui.invoice.updateCalculations()"></td>
             <td class="p-3"><input type="number" class="w-full text-center text-xs font-bold bg-transparent border-none p-0 focus:ring-0 item-discount" value="${data?.discount || 0}" oninput="ui.invoice.updateCalculations()"></td>
@@ -5383,41 +5266,6 @@ try {
                 ui.invoice.updateCalculations();
             },
 
-            filterProducts: (rowId, query) => {
-                const results = document.getElementById(`results-${rowId}`);
-                if (!query) {
-                    results.classList.add('hidden');
-                    return;
-                }
-                const filtered = state.products.filter(p => p.name.toLowerCase().includes(query.toLowerCase()));
-                if (filtered.length > 0) {
-                    results.innerHTML = filtered.map(p => `
-                        <div class="product-result-item" onclick="ui.invoice.selectProduct('${rowId}', '${p.id}', '${p.name.replace(/'/g, "\\'")}', '${p.hsn || ''}', ${p.price})">
-                            <div class="item-info">
-                                <div class="product-name">${p.name}</div>
-                                <div class="product-meta text-slate-400">HSN: ${p.hsn || '-'}</div>
-                            </div>
-                            <div class="bg-slate-100 px-3 py-1 rounded-full text-[10px] font-black text-slate-900 tabular-nums">
-                                ₹${p.price.toLocaleString()}
-                            </div>
-                        </div>
-                    `).join('');
-                    results.classList.remove('hidden');
-                } else {
-                    results.innerHTML = '<div class="p-4 text-xs font-bold text-slate-400">No products found</div>';
-                    results.classList.remove('hidden');
-                }
-            },
-
-            selectProduct: (rowId, productId, name, hsn, price) => {
-                const row = document.getElementById(`inv-item-${rowId}`);
-                row.querySelector('.item-search').value = name;
-                row.querySelector('.item-product-id').value = productId;
-                row.querySelector('.item-hsn').value = hsn;
-                row.querySelector('.item-rate').value = price;
-                document.getElementById(`results-${rowId}`).classList.add('hidden');
-                ui.invoice.updateCalculations();
-            },
 
             removeItem: (id) => {
                 document.getElementById(`inv-item-${id}`).remove();
@@ -5504,22 +5352,25 @@ try {
                 let taxes = {};
 
                 document.querySelectorAll('#inv-line-items tr').forEach(row => {
-                    const productId = row.querySelector('.item-product-id').value;
+                    const productId = row.querySelector('.item-product-id')?.value;
                     const product = state.products.find(p => p.id === productId);
-                    const qty = parseFloat(row.querySelector('.item-qty').value) || 0;
-                    const rate = parseFloat(row.querySelector('.item-rate').value) || 0;
-                    const discPct = parseFloat(row.querySelector('.item-discount').value) || 0;
+                    const qty = parseFloat(row.querySelector('.item-qty')?.value) || 0;
+                    const rate = parseFloat(row.querySelector('.item-rate')?.value) || 0;
+                    const discPct = parseFloat(row.querySelector('.item-discount')?.value) || 0;
 
                     const totalBeforeDisc = qty * rate;
                     const discAmount = (totalBeforeDisc * discPct) / 100;
                     let taxable = totalBeforeDisc - discAmount;
 
                     taxableAmount += taxable;
-                    row.querySelector('.row-total').textContent = `${symbol}${taxable.toLocaleString(loc, { minimumFractionDigits: 2 })}`;
+                    if (row.querySelector('.row-total')) {
+                        row.querySelector('.row-total').textContent = `${symbol}${taxable.toLocaleString(loc, { minimumFractionDigits: 2 })}`;
+                    }
 
                     let taxAmount = 0;
-                    if (product && type === 'Regular') {
-                        const gstRate = product.gst || 0;
+                    if (type === 'Regular') {
+                        // Priority: Product's GST > Default 18%
+                        const gstRate = product ? (product.gst || 0) : 18;
                         taxAmount = Math.round((taxable * gstRate) * 100) / 10000;
 
                         if (isInterState) {
@@ -5529,7 +5380,9 @@ try {
                             taxes['SGST'] = Math.round(((taxes['SGST'] || 0) + (taxAmount / 2)) * 100) / 100;
                         }
                     }
-                    row.querySelector('.row-total-with-tax').textContent = `${symbol}${(taxable + taxAmount).toLocaleString(loc, { minimumFractionDigits: 2 })}`;
+                    if (row.querySelector('.row-total-with-tax')) {
+                        row.querySelector('.row-total-with-tax').textContent = `${symbol}${(taxable + taxAmount).toLocaleString(loc, { minimumFractionDigits: 2 })}`;
+                    }
                 });
 
                 document.getElementById('inv-sum-taxable').textContent = `${symbol}${taxableAmount.toLocaleString(loc, { minimumFractionDigits: 2 })}`;
@@ -5568,19 +5421,24 @@ try {
 
                     // Wait for modal to render
                     setTimeout(() => {
-                        document.getElementById('inv-no').value = inv.invoice_no;
-                        document.getElementById('inv-date').value = inv.date;
-                        if (inv.due_date) document.getElementById('inv-due-date').value = inv.due_date;
-                        document.getElementById('inv-customer').value = inv.customer_id;
-                        document.getElementById('inv-customer-search').value = inv.customers?.name || '';
-                        document.getElementById('inv-type').value = inv.type || 'Regular';
-                        if (document.getElementById('inv-currency')) document.getElementById('inv-currency').value = inv.currency || 'INR';
-                        if (document.getElementById('inv-exchange-rate')) document.getElementById('inv-exchange-rate').value = inv.exchange_rate || 1.0;
-                        document.getElementById('inv-bank').value = inv.bank_id || 'inr';
-                        document.getElementById('inv-purchase-no').value = inv.purchase_no || '';
-                        if (inv.purchase_date) document.getElementById('inv-purchase-date').value = inv.purchase_date;
-                        document.getElementById('inv-notes').value = inv.notes || '';
-                        if (document.getElementById('inv-bank-charges')) document.getElementById('inv-bank-charges').value = inv.bank_charges || 0;
+                        const setVal = (id, val) => {
+                            const el = document.getElementById(id);
+                            if (el) el.value = val !== undefined && val !== null ? val : '';
+                        };
+
+                        setVal('inv-no', inv.invoice_no);
+                        setVal('inv-date', inv.date);
+                        if (inv.due_date) setVal('inv-due-date', inv.due_date);
+                        setVal('inv-customer', inv.customer_id);
+                        setVal('inv-customer-search', inv.customers?.name || '');
+                        setVal('inv-type', inv.type || 'Regular');
+                        setVal('inv-currency', inv.currency || 'INR');
+                        setVal('inv-exchange-rate', inv.exchange_rate || 1.0);
+                        setVal('inv-bank', inv.bank_id || 'inr');
+                        setVal('inv-purchase-no', inv.purchase_no || '');
+                        if (inv.purchase_date) setVal('inv-purchase-date', inv.purchase_date);
+                        setVal('inv-notes', inv.notes || '');
+                        setVal('inv-bank-charges', inv.bank_charges || 0);
 
                         // Custom Fields
                         if (inv.custom_fields && Array.isArray(inv.custom_fields)) {
@@ -5590,7 +5448,21 @@ try {
                         // Line Items
                         const container = document.getElementById('inv-line-items');
                         container.innerHTML = '';
-                        if (inv.invoice_items && inv.invoice_items.length > 0) {
+                        
+                        // Try new metadata format first
+                        if (inv.metadata?.items && Array.isArray(inv.metadata.items)) {
+                            inv.metadata.items.forEach(item => {
+                                ui.invoice.addItem({
+                                    product_id: item.product_id || '',
+                                    product_name: item.product_name,
+                                    hsn: item.hsn || '',
+                                    qty: item.qty || 0,
+                                    rate: item.rate || 0,
+                                    discount: item.discount || 0
+                                });
+                            });
+                        } else if (inv.invoice_items && inv.invoice_items.length > 0) {
+                            // Legacy fallback
                             inv.invoice_items.forEach(item => {
                                 ui.invoice.addItem({
                                     product_id: item.product_id,
@@ -5626,23 +5498,25 @@ try {
             }
         },
         purchase: {
-            addItem: () => {
+            addItem: (data = null) => {
                 const id = Date.now().toString();
                 const container = document.getElementById('pur-line-items');
                 if (!container) return;
                 const row = document.createElement('div');
-                row.className = 'line-item-row';
+                row.className = 'line-item-row grid grid-cols-[1fr,80px,120px,120px,40px] gap-4 items-center py-3 border-b border-slate-50 last:border-0';
                 row.id = `pur-item-${id}`;
                 row.innerHTML = `
-                    <select class="form-input pur-item-select" onchange="ui.purchase.onItemSelect('${id}', this.value)">
-                        <option value="">Select Item...</option>
-                        ${state.products.map(p => `<option value="${p.id}">${p.name}</option>`).join('')}
-                    </select>
-                    <input type="number" class="form-input pur-item-qty" value="1" oninput="ui.purchase.updateCalculations()">
-                        <input type="number" class="form-input pur-item-rate" value="0" oninput="ui.purchase.updateCalculations()">
-                            <span class="text-right font-bold text-slate-700 pur-item-total">₹0.00</span>
-                            <button onclick="ui.purchase.removeItem('${id}')" class="remove-item">✕</button>
-                            `;
+                    <input type="text" class="form-input text-xs font-bold bg-transparent border-none p-0 focus:ring-0 pur-item-name" 
+                        placeholder="Item name..." value="${data?.product_name || ''}">
+                    <input type="number" class="form-input text-xs font-bold bg-slate-50 border-none rounded py-1 text-center pur-item-qty" 
+                        value="${data?.qty || 1}" oninput="ui.purchase.updateCalculations()">
+                    <input type="number" class="form-input text-xs font-bold bg-transparent border-none p-0 focus:ring-0 pur-item-rate" 
+                        value="${data?.rate || 0}" oninput="ui.purchase.updateCalculations()">
+                    <span class="text-right font-bold text-slate-700 pur-item-total text-xs tabular-nums">₹0.00</span>
+                    <button onclick="ui.purchase.removeItem('${id}')" class="text-slate-300 hover:text-red-500 transition-colors">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                    </button>
+                    `;
                 container.appendChild(row);
                 ui.purchase.updateCalculations();
             },
@@ -5651,37 +5525,21 @@ try {
                 if (row) row.remove();
                 ui.purchase.updateCalculations();
             },
-            onItemSelect: (rowId, productId) => {
-                const product = state.products.find(p => p.id === productId);
-                if (product) {
-                    const row = document.getElementById(`pur-item-${rowId}`);
-                    if (row) {
-                        row.querySelector('.pur-item-rate').value = product.price;
-                        ui.purchase.updateCalculations();
-                    }
-                }
-            },
             updateCalculations: () => {
                 let subtotal = 0;
                 let taxTotal = 0;
 
-                document.querySelectorAll('.line-item-row:not(.bg-slate-50)').forEach(row => {
-                    const select = row.querySelector('.pur-item-select');
-                    if (!select) return; // Skip sales rows if open simultaneously
-
-                    const productId = select.value;
-                    const product = state.products.find(p => p.id === productId);
+                document.querySelectorAll('.pur-item-name').forEach(input => {
+                    const row = input.closest('.line-item-row');
                     const qty = parseFloat(row.querySelector('.pur-item-qty').value) || 0;
-                    const rate = parseFloat(row.querySelector('.pur-item-rate').value) || 0;
+                    const rate = parseFloat(row.querySelector('.rate-input')?.value || row.querySelector('.pur-item-rate').value) || 0; // Supporting both classes for safety
                     const amount = qty * rate;
 
                     subtotal += amount;
                     row.querySelector('.pur-item-total').textContent = `₹${amount.toLocaleString()}`;
-
-                    if (product) {
-                        const gstRate = product.gst || 0;
-                        taxTotal += (amount * gstRate) / 100;
-                    }
+                    
+                    // Default 18% tax for purchases too if not specified
+                    taxTotal += (amount * 18) / 100;
                 });
 
                 document.getElementById('pur-subtotal').textContent = `₹${subtotal.toLocaleString()}`;
@@ -5690,23 +5548,25 @@ try {
             }
         },
         doc: {
-            addItem: () => {
+            addItem: (data = null) => {
                 const id = Date.now().toString();
                 const container = document.getElementById('doc-line-items');
                 if (!container) return;
                 const row = document.createElement('div');
-                row.className = 'line-item-row';
+                row.className = 'line-item-row grid grid-cols-[1fr,60px,100px,100px,30px] gap-4 items-center py-3 border-b border-slate-50 last:border-0';
                 row.id = `doc-item-${id}`;
                 row.innerHTML = `
-                            <select class="form-input doc-item-select" onchange="ui.doc.onItemSelect('${id}', this.value)">
-                                <option value="">Select Item...</option>
-                                ${state.products.map(p => `<option value="${p.id}">${p.name}</option>`).join('')}
-                            </select>
-                            <input type="number" class="form-input doc-item-qty" value="1" oninput="ui.doc.updateCalculations()">
-                                <input type="number" class="form-input doc-item-rate" value="0" oninput="ui.doc.updateCalculations()">
-                                    <span class="text-right font-bold text-slate-700 doc-item-total">₹0.00</span>
-                                    <button onclick="ui.doc.removeItem('${id}')" class="remove-item">✕</button>
-                                    `;
+                            <input type="text" class="form-input text-xs font-bold bg-transparent border-none p-0 focus:ring-0 doc-item-name" 
+                                placeholder="Item name..." value="${data?.product_name || ''}">
+                            <input type="number" class="form-input text-xs font-bold bg-slate-50 border-none rounded py-1 text-center doc-item-qty" 
+                                value="${data?.qty || 1}" oninput="ui.doc.updateCalculations()">
+                            <input type="number" class="form-input text-xs font-bold bg-transparent border-none p-0 focus:ring-0 doc-item-rate" 
+                                value="${data?.rate || 0}" oninput="ui.doc.updateCalculations()">
+                            <span class="text-right font-bold text-slate-700 doc-item-total text-xs tabular-nums">₹0.00</span>
+                            <button onclick="ui.doc.removeItem('${id}')" class="text-slate-300 hover:text-red-500 transition-colors">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                            </button>
+                            `;
                 container.appendChild(row);
                 ui.doc.updateCalculations();
             },
@@ -5715,20 +5575,10 @@ try {
                 if (row) row.remove();
                 ui.doc.updateCalculations();
             },
-            onItemSelect: (rowId, productId) => {
-                const product = state.products.find(p => p.id === productId);
-                if (product) {
-                    const row = document.getElementById(`doc-item-${rowId}`);
-                    if (row) {
-                        row.querySelector('.doc-item-rate').value = product.price;
-                        ui.doc.updateCalculations();
-                    }
-                }
-            },
             updateCalculations: () => {
                 let subtotal = 0;
-                document.querySelectorAll('.doc-item-select').forEach(select => {
-                    const row = select.closest('.line-item-row');
+                document.querySelectorAll('.doc-item-name').forEach(input => {
+                    const row = input.closest('.line-item-row');
                     const qty = parseFloat(row.querySelector('.doc-item-qty').value) || 0;
                     const rate = parseFloat(row.querySelector('.doc-item-rate').value) || 0;
                     const amount = qty * rate;
@@ -5863,51 +5713,11 @@ try {
                 }
             },
 
-            filterProducts: (rowId, query) => {
-                const results = document.getElementById(`results-${rowId}`);
-                if (!results) return;
-
-                if (!query) {
-                    results.classList.add('hidden');
-                    return;
-                }
-
-                const filtered = state.products.filter(p =>
-                    p.name.toLowerCase().includes(query.toLowerCase()) ||
-                    (p.sku && p.sku.toLowerCase().includes(query.toLowerCase()))
-                ).slice(0, 5);
-
-                if (filtered.length === 0) {
-                    results.innerHTML = `<div class="p-4 text-xs font-bold text-slate-400">No products found</div>`;
-                } else {
-                    results.innerHTML = filtered.map(p => `
-                        <div class="product-result-item" onclick="ui.proforma_v2.selectProduct('${rowId}', '${p.id}', '${p.name.replace(/'/g, "\\'")}')">
-                            <div class="item-info">
-                                <span class="product-name">${p.name}</span>
-                                <span class="product-meta">SKU: ${p.sku || 'No SKU'}</span>
-                            </div>
-                            <div class="bg-slate-100 px-3 py-1 rounded-full text-[10px] font-black text-slate-900 tabular-nums">
-                                ₹${p.price.toLocaleString()}
-                            </div>
-                        </div>
-                    `).join('');
-                }
-                results.classList.remove('hidden');
-            },
-
-            selectProduct: (rowId, productId, productName) => {
-                const row = document.getElementById(`item-${rowId}`);
-                if (row) {
-                    row.querySelector('.product-search-input').value = productName;
-                    row.querySelector('.product-id-hidden').value = productId;
-                    document.getElementById(`results-${rowId}`).classList.add('hidden');
-                    ui.proforma_v2.onItemSelect(rowId, productId);
-                }
-            },
 
 
 
-            addItem: () => {
+
+            addItem: (data = null) => {
                 const id = Date.now().toString();
                 const container = document.getElementById('pfi-line-items');
                 const emptyState = document.getElementById('pfi-empty-state');
@@ -5919,41 +5729,37 @@ try {
                 row.id = `item-${id}`;
                 row.innerHTML = `
                                             <td class="p-4">
-                                                <div class="product-search-container">
-                                                    <input type="text"
-                                                        class="form-input text-sm product-search-input w-full bg-transparent border-none font-bold focus:ring-0"
-                                                        placeholder="Search product..."
-                                                        oninput="ui.proforma_v2.filterProducts('${id}', this.value)"
-                                                        autocomplete="off">
-                                                        <input type="hidden" class="product-id-hidden">
-                                                            <div id="results-${id}" class="product-results-list hidden"></div>
-                                                        </div>
-                                                    </td>
-                                                    <td class="p-4">
-                                                        <input type="text" class="form-input text-sm hsn-input w-full bg-slate-50 border-none rounded-lg font-bold" placeholder="HSN/SAC">
-                                                    </td>
-                                                    <td class="p-4">
-                                                        <input type="number" class="form-input text-sm qty-input w-full bg-slate-50 border-none rounded-lg text-center font-bold" value="1" min="1" oninput="ui.proforma_v2.updateCalculations()">
-                                                    </td>
-                                                    <td class="p-4">
-                                                        <input type="number" class="form-input text-sm rate-input w-full bg-transparent border-none font-bold" value="0" min="0" oninput="ui.proforma_v2.updateCalculations()">
-                                                    </td>
-                                                    <td class="p-4">
-                                                        <input type="number" class="form-input text-sm discount-input w-full bg-slate-50 border-none rounded-lg text-center font-bold" value="0" min="0" max="100" oninput="ui.proforma_v2.updateCalculations()">
-                                                    </td>
-                                                    <td class="p-4">
-                                                        <div class="tax-text text-[10px] font-bold text-slate-400">-</div>
-                                                        <div class="text-[10px] font-bold text-slate-900 border-t border-slate-100 mt-1 pt-1 row-total-with-tax">₹0.00</div>
-                                                    </td>
-                                                    <td class="p-4 text-right">
-                                                        <div class="row-total text-sm font-black text-slate-900 tabular-nums">₹0.00</div>
-                                                    </td>
-                                                    <td class="p-4 text-center">
-                                                        <button onclick="ui.proforma_v2.removeItem('${id}')" class="p-2 text-slate-300 hover:text-red-500 transition-colors">
-                                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                                                        </button>
-                                                    </td>
-                                                    `;
+                                                <input type="text"
+                                                    class="form-input text-sm product-name-input w-full bg-transparent border-none font-bold focus:ring-0"
+                                                    placeholder="Enter product/service name..."
+                                                    value="${data?.product_name || ''}"
+                                                    autocomplete="off">
+                                            </td>
+                                            <td class="p-4">
+                                                <input type="text" class="form-input text-sm hsn-input w-full bg-slate-50 border-none rounded-lg font-bold" placeholder="HSN/SAC" value="${data?.hsn || ''}">
+                                            </td>
+                                            <td class="p-4">
+                                                <input type="number" class="form-input text-sm qty-input w-full bg-slate-50 border-none rounded-lg text-center font-bold" value="${data?.qty || 1}" min="1" oninput="ui.proforma_v2.updateCalculations()">
+                                            </td>
+                                            <td class="p-4">
+                                                <input type="number" class="form-input text-sm rate-input w-full bg-transparent border-none font-bold" value="${data?.rate || 0}" min="0" oninput="ui.proforma_v2.updateCalculations()">
+                                            </td>
+                                            <td class="p-4">
+                                                <input type="number" class="form-input text-sm discount-input w-full bg-slate-50 border-none rounded-lg text-center font-bold" value="${data?.discount || 0}" min="0" max="100" oninput="ui.proforma_v2.updateCalculations()">
+                                            </td>
+                                            <td class="p-4">
+                                                <div class="tax-text text-[10px] font-bold text-slate-400">-</div>
+                                                <div class="text-[10px] font-bold text-slate-900 border-t border-slate-100 mt-1 pt-1 row-total-with-tax">₹0.00</div>
+                                            </td>
+                                            <td class="p-4 text-right">
+                                                <div class="row-total text-sm font-black text-slate-900 tabular-nums">₹0.00</div>
+                                            </td>
+                                            <td class="p-4 text-center">
+                                                <button onclick="ui.proforma_v2.removeItem('${id}')" class="p-2 text-slate-300 hover:text-red-500 transition-colors">
+                                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                                </button>
+                                            </td>
+                                            `;
                 container.appendChild(row);
                 ui.proforma_v2.updateCalculations();
             },
@@ -5968,15 +5774,6 @@ try {
                 }
 
                 ui.proforma_v2.updateCalculations();
-            },
-            onItemSelect: (rowId, productId) => {
-                const product = state.products.find(p => p.id === productId);
-                const row = document.getElementById(`item-${rowId}`);
-                if (product && row) {
-                    row.querySelector('.rate-input').value = product.price;
-                    row.querySelector('.hsn-input').value = product.hsn || '';
-                    ui.proforma_v2.updateCalculations();
-                }
             },
             toggleExportFields: () => {
                 const type = document.getElementById('pfi-type')?.value;
@@ -6039,22 +5836,19 @@ try {
                 let taxBreakdown = {};
 
                 document.querySelectorAll('#pfi-line-items tr').forEach(row => {
-                    const productId = row.querySelector('.product-id-hidden').value;
-                    const product = state.products.find(p => p.id === productId);
+                    const name = row.querySelector('.product-name-input').value;
                     const qty = parseFloat(row.querySelector('.qty-input').value) || 0;
                     const rate = parseFloat(row.querySelector('.rate-input').value) || 0;
                     const discPct = parseFloat(row.querySelector('.discount-input').value) || 0;
 
                     const baseAmount = qty * rate;
                     const discount = (baseAmount * discPct) / 100;
-                    const baseTaxable = baseAmount - discount;
-
-                    totalDiscount += discount;
                     const taxable = baseAmount - discount;
 
+                    totalDiscount += discount;
                     taxableTotal += taxable;
 
-                    let gstRate = (product && pfiType === 'Regular') ? (product.gst || 0) : 0;
+                    let gstRate = (pfiType === 'Regular') ? 18 : 0; // Defaulting to 18% for direct entry Regular PFI
                     if (pfiType === 'LUT / Export' || pfiType === 'Without GST') gstRate = 0;
 
                     const taxAmount = Math.round((taxable * gstRate) * 100) / 10000;
@@ -6137,9 +5931,23 @@ try {
                             custom_fields: Array.from(document.querySelectorAll('#pfi-custom-fields > div')).map(div => ({
                                 name: div.querySelector('.cf-name').value,
                                 value: div.querySelector('.cf-value').value
-                            })).filter(f => f.name || f.value)
+                            })).filter(f => f.name || f.value),
+                            items: []
                         }
                     };
+
+                    rows.forEach(row => {
+                        const name = row.querySelector('.product-name-input').value;
+                        if (!name) return;
+                        proforma.metadata.items.push({
+                            product_name: name,
+                            hsn: row.querySelector('.hsn-input').value,
+                            qty: parseFloat(row.querySelector('.qty-input').value) || 0,
+                            rate: parseFloat(row.querySelector('.rate-input').value) || 0,
+                            discount: parseFloat(row.querySelector('.discount-input').value) || 0,
+                            tax_rate: (pfiType === 'Regular') ? 18 : 0
+                        });
+                    });
 
                     let pfiData;
                     if (ui.proforma_v2.activeId) {
@@ -6151,30 +5959,11 @@ try {
                             .single();
                         if (error) throw error;
                         pfiData = data;
-                        await supabaseClient.from('proforma_items').delete().eq('proforma_id', pfiData.id);
                     } else {
                         const { data, error } = await supabaseClient.from('proforma_invoices').insert(proforma).select().single();
                         if (error) throw error;
                         pfiData = data;
                     }
-
-                    const items = [];
-                    rows.forEach(row => {
-                        const productId = row.querySelector('.product-id-hidden').value;
-                        if (!productId) return;
-                        items.push({
-                            proforma_id: pfiData.id,
-                            product_id: productId,
-                            hsn_code: row.querySelector('.hsn-input').value,
-                            qty: parseFloat(row.querySelector('.qty-input').value),
-                            rate: parseFloat(row.querySelector('.rate-input').value),
-                            discount: parseFloat(row.querySelector('.discount-input').value),
-                            user_id: state.user.id
-                        });
-                    });
-
-                    const { error: itemError } = await supabaseClient.from('proforma_items').insert(items);
-                    if (itemError) throw itemError;
 
                     ui.modal.close();
                     await api.docs.fetch('proforma');
@@ -6347,49 +6136,8 @@ try {
                 if (row) row.remove();
             },
 
-            filterProducts: (rowId, query) => {
-                const results = document.getElementById(`results-${rowId}`);
-                if (!results) return;
 
-                if (!query) {
-                    results.classList.add('hidden');
-                    return;
-                }
-
-                const filtered = state.products.filter(p =>
-                    p.name.toLowerCase().includes(query.toLowerCase()) ||
-                    (p.sku && p.sku.toLowerCase().includes(query.toLowerCase()))
-                ).slice(0, 5);
-
-                if (filtered.length === 0) {
-                    results.innerHTML = `<div class="p-4 text-xs font-bold text-slate-400">No products found</div>`;
-                } else {
-                    results.innerHTML = filtered.map(p => `
-                        <div class="product-result-item" onclick="ui.quotation_v2.selectProduct('${rowId}', '${p.id}', '${p.name.replace(/'/g, "\\'")}')">
-                            <div class="item-info">
-                                <span class="product-name">${p.name}</span>
-                                <span class="product-meta">SKU: ${p.sku || 'No SKU'}</span>
-                            </div>
-                            <div class="bg-slate-100 px-3 py-1 rounded-full text-[10px] font-black text-slate-900 tabular-nums">
-                                ₹${p.price.toLocaleString()}
-                            </div>
-                        </div>
-                    `).join('');
-                }
-                results.classList.remove('hidden');
-            },
-
-            selectProduct: (rowId, productId, productName) => {
-                const row = document.getElementById(`qrow-${rowId}`);
-                if (row) {
-                    row.querySelector('.product-search-input').value = productName;
-                    row.querySelector('.product-id-hidden').value = productId;
-                    document.getElementById(`results-${rowId}`).classList.add('hidden');
-                    ui.quotation_v2.onItemSelect(rowId, productId);
-                }
-            },
-
-            addItem: () => {
+            addItem: (data = null) => {
                 const id = Date.now().toString();
                 const container = document.getElementById('qtn-line-items');
                 const emptyState = document.getElementById('qtn-empty-state');
@@ -6401,27 +6149,23 @@ try {
                 row.id = `qrow-${id}`;
                 row.innerHTML = `
                     <td class="p-4">
-                        <div class="product-search-container">
-                            <input type="text"
-                                class="form-input text-sm product-search-input w-full bg-transparent border-none font-bold focus:ring-0"
-                                placeholder="Search product..."
-                                oninput="ui.quotation_v2.filterProducts('${id}', this.value)"
-                                autocomplete="off">
-                            <input type="hidden" class="product-id-hidden">
-                            <div id="results-${id}" class="product-results-list hidden"></div>
-                        </div>
+                        <input type="text"
+                            class="form-input text-sm product-name-input w-full bg-transparent border-none font-bold focus:ring-0"
+                            placeholder="Enter product/service name..."
+                            value="${data?.product_name || ''}"
+                            autocomplete="off">
                     </td>
                     <td class="p-4">
-                        <input type="text" class="form-input text-sm hsn-input w-full bg-slate-50 border-none rounded-lg font-bold" placeholder="HSN/SAC">
+                        <input type="text" class="form-input text-sm hsn-input w-full bg-slate-50 border-none rounded-lg font-bold" placeholder="HSN/SAC" value="${data?.hsn || ''}">
                     </td>
                     <td class="p-4">
-                        <input type="number" class="form-input text-sm qty-input w-full bg-slate-50 border-none rounded-lg text-center font-bold" value="1" min="1" oninput="ui.quotation_v2.updateCalculations()">
+                        <input type="number" class="form-input text-sm qty-input w-full bg-slate-50 border-none rounded-lg text-center font-bold" value="${data?.qty || 1}" min="1" oninput="ui.quotation_v2.updateCalculations()">
                     </td>
                     <td class="p-4">
-                        <input type="number" class="form-input text-sm rate-input w-full bg-transparent border-none font-bold" value="0" min="0" oninput="ui.quotation_v2.updateCalculations()">
+                        <input type="number" class="form-input text-sm rate-input w-full bg-transparent border-none font-bold" value="${data?.rate || 0}" min="0" oninput="ui.quotation_v2.updateCalculations()">
                     </td>
                     <td class="p-4">
-                        <input type="number" class="form-input text-sm discount-input w-full bg-slate-50 border-none rounded-lg text-center font-bold" value="0" min="0" max="100" oninput="ui.quotation_v2.updateCalculations()">
+                        <input type="number" class="form-input text-sm discount-input w-full bg-slate-50 border-none rounded-lg text-center font-bold" value="${data?.discount || 0}" min="0" max="100" oninput="ui.quotation_v2.updateCalculations()">
                     </td>
                     <td class="p-4">
                         <div class="tax-text text-[10px] font-bold text-slate-400">-</div>
@@ -6453,15 +6197,6 @@ try {
                 ui.quotation_v2.updateCalculations();
             },
 
-            onItemSelect: (rowId, productId) => {
-                const product = state.products.find(p => p.id === productId);
-                const row = document.getElementById(`qrow-${rowId}`);
-                if (product && row) {
-                    row.querySelector('.rate-input').value = product.price;
-                    row.querySelector('.hsn-input').value = product.hsn || '';
-                    ui.quotation_v2.updateCalculations();
-                }
-            },
 
             toggleExportFields: () => {
                 const type = document.getElementById('qtn-type')?.value;
@@ -6583,8 +6318,9 @@ try {
                 let taxBreakdown = {};
 
                 document.querySelectorAll('#qtn-line-items tr').forEach(row => {
-                    const productId = row.querySelector('.product-id-hidden').value;
-                    const product = state.products.find(p => p.id === productId);
+                    const nameInput = row.querySelector('.product-name-input');
+                    if (!nameInput) return;
+                    const name = nameInput.value;
                     const qty = parseFloat(row.querySelector('.qty-input').value) || 0;
                     const rate = parseFloat(row.querySelector('.rate-input').value) || 0;
                     const discPct = parseFloat(row.querySelector('.discount-input').value) || 0;
@@ -6596,7 +6332,7 @@ try {
                     totalDiscount += discount;
                     taxableTotal += taxable;
 
-                    let gstRate = (product && qtnType === 'Regular') ? (product.gst || 0) : 0;
+                    let gstRate = (qtnType === 'Regular') ? 18 : 0; 
                     if (qtnType === 'LUT / Export' || qtnType === 'Without GST') gstRate = 0;
 
                     const taxAmount = Math.round((taxable * gstRate) * 100) / 10000;
@@ -6751,9 +6487,25 @@ try {
                                 custom_fields: Array.from(document.querySelectorAll('#qtn-custom-fields > div')).map(div => ({
                                     name: div.querySelector('.qcf-name').value,
                                     value: div.querySelector('.qcf-value').value
-                                })).filter(f => f.name || f.value)
+                                })).filter(f => f.name || f.value),
+                                items: []
                             }
                         };
+
+                        rows.forEach(row => {
+                            const nameEl = row.querySelector('.product-name-input');
+                            if (!nameEl) return;
+                            const name = nameEl.value;
+                            if (!name) return;
+                            quotation.metadata.items.push({
+                                product_name: name,
+                                hsn: row.querySelector('.hsn-input').value,
+                                qty: parseFloat(row.querySelector('.qty-input').value) || 0,
+                                rate: parseFloat(row.querySelector('.rate-input').value) || 0,
+                                discount: parseFloat(row.querySelector('.discount-input').value) || 0,
+                                tax_rate: (qtnType === 'Regular') ? 18 : 0
+                            });
+                        });
 
                         let qtnData;
                         if (isRevision) {
@@ -6790,30 +6542,11 @@ try {
                                 .single();
                             if (error) throw error;
                             qtnData = data;
-                            await supabaseClient.from('quotation_items').delete().eq('quotation_id', qtnData.id);
                         } else {
                             const { data, error } = await supabaseClient.from('quotations').insert(quotation).select().single();
                             if (error) throw error;
                             qtnData = data;
                         }
-
-                        const items = [];
-                        rows.forEach(row => {
-                            const productId = row.querySelector('.product-id-hidden').value;
-                            if (!productId) return;
-                            items.push({
-                                quotation_id: qtnData.id,
-                                product_id: productId,
-                                hsn_code: row.querySelector('.hsn-input').value,
-                                qty: parseFloat(row.querySelector('.qty-input').value),
-                                rate: parseFloat(row.querySelector('.rate-input').value),
-                                discount: parseFloat(row.querySelector('.discount-input').value),
-                                user_id: state.user.id
-                            });
-                        });
-
-                        const { error: itemError } = await supabaseClient.from('quotation_items').insert(items);
-                        if (itemError) throw itemError;
 
                         ui.modal.close();
                         await api.docs.fetch('quotations');
@@ -6858,24 +6591,6 @@ try {
             },
             search: (q) => {
                 ui.sales.searchQuery = q;
-                render();
-                // Restore focus
-                const input = document.querySelector('.search-input');
-                if (input) {
-                    input.focus();
-                    input.setSelectionRange(input.value.length, input.value.length);
-                }
-            }
-        },
-        products: {
-            filter: 'Items',
-            searchQuery: '',
-            setFilter: (f) => {
-                ui.products.filter = f;
-                render();
-            },
-            search: (q) => {
-                ui.products.searchQuery = q;
                 render();
                 // Restore focus
                 const input = document.querySelector('.search-input');
@@ -6993,22 +6708,40 @@ try {
                     }
 
                     // Load items
-                    const { data: items } = await supabaseClient.from('quotation_items').select('*').eq('quotation_id', id);
                     const list = document.getElementById('qtn-line-items');
                     if (list) {
                         list.innerHTML = '';
-                        if (items && items.length > 0) {
-                            items.forEach(item => {
-                                ui.quotation_v2.addItem();
+                        
+                        // Try new metadata format first
+                        if (qtn.metadata?.items && Array.isArray(qtn.metadata.items)) {
+                            qtn.metadata.items.forEach(item => {
+                                ui.quotation_v2.addItem(item);
                                 const row = list.lastElementChild;
-                                const product = state.products.find(p => p.id === item.product_id);
-                                row.querySelector('.product-search-input').value = product ? product.name : 'Unknown Product';
-                                row.querySelector('.product-id-hidden').value = item.product_id;
-                                row.querySelector('.hsn-input').value = item.hsn_code || '';
-                                row.querySelector('.qty-input').value = item.qty;
-                                row.querySelector('.rate-input').value = item.rate;
-                                row.querySelector('.discount-input').value = item.discount || 0;
+                                if (row) {
+                                    row.querySelector('.product-name-input').value = item.product_name;
+                                    row.querySelector('.hsn-input').value = item.hsn || '';
+                                    row.querySelector('.qty-input').value = item.qty;
+                                    row.querySelector('.rate-input').value = item.rate;
+                                    row.querySelector('.discount-input').value = item.discount || 0;
+                                }
                             });
+                        } else {
+                            // Legacy fallback
+                            const { data: items } = await supabaseClient.from('quotation_items').select('*').eq('quotation_id', id);
+                            if (items && items.length > 0) {
+                                items.forEach(item => {
+                                    ui.quotation_v2.addItem();
+                                    const row = list.lastElementChild;
+                                    if (row) {
+                                        const product = state.products.find(p => p.id === item.product_id);
+                                        row.querySelector('.product-name-input').value = product ? product.name : 'Unknown Product';
+                                        row.querySelector('.hsn-input').value = item.hsn_code || '';
+                                        row.querySelector('.qty-input').value = item.qty;
+                                        row.querySelector('.rate-input').value = item.rate;
+                                        row.querySelector('.discount-input').value = item.discount || 0;
+                                    }
+                                });
+                            }
                         }
                     }
 
@@ -7098,25 +6831,36 @@ try {
                     const container = document.getElementById('pfi-line-items');
                     if (container) {
                         container.innerHTML = '';
-                        if (p.proforma_items && p.proforma_items.length > 0) {
+                        
+                        // Try new metadata format first
+                        if (p.metadata?.items && Array.isArray(p.metadata.items)) {
+                            p.metadata.items.forEach(item => {
+                                ui.proforma_v2.addItem(item);
+                                const lastRow = container.lastElementChild;
+                                if (lastRow) {
+                                    lastRow.querySelector('.product-name-input').value = item.product_name;
+                                    lastRow.querySelector('.hsn-input').value = item.hsn || '';
+                                    lastRow.querySelector('.qty-input').value = item.qty || 1;
+                                    lastRow.querySelector('.rate-input').value = item.rate || 0;
+                                    lastRow.querySelector('.discount-input').value = item.discount || 0;
+                                }
+                            });
+                        } else if (p.proforma_items && p.proforma_items.length > 0) {
+                            // Legacy fallback
                             for (const item of p.proforma_items) {
                                 ui.proforma_v2.addItem();
                                 const lastRow = container.lastElementChild;
                                 if (lastRow) {
-                                    const prodSelectInput = lastRow.querySelector('.product-search-input');
-                                    const prodIdInput = lastRow.querySelector('.product-id-hidden');
-                                    prodIdInput.value = item.product_id;
                                     const product = state.products.find(pr => pr.id === item.product_id);
-                                    if (product) prodSelectInput.value = product.name;
-
+                                    lastRow.querySelector('.product-name-input').value = product ? product.name : '';
                                     lastRow.querySelector('.hsn-input').value = item.hsn_code || '';
                                     lastRow.querySelector('.qty-input').value = item.qty || 1;
                                     lastRow.querySelector('.rate-input').value = item.rate || 0;
                                     lastRow.querySelector('.discount-input').value = item.discount || 0;
                                 }
                             }
-                            ui.proforma_v2.updateCalculations();
                         }
+                        ui.proforma_v2.updateCalculations();
                     }
                 } catch (err) {
                     console.error('Edit Error:', err);
@@ -7153,8 +6897,8 @@ try {
         masters: {
             fetch: async () => {
                 console.log('📦 Refreshing Master Data...');
-                const { data: products } = await supabaseClient.from('products').select('*');
-                state.products = products || [];
+                // Products module removed to save Supabase storage/memory
+                state.products = []; 
 
                 const { data: customers } = await supabaseClient.from('customers').select('*');
                 state.customers = customers || [];
@@ -7188,39 +6932,21 @@ try {
                 }
             },
             delete: async (table, id) => {
-                const item = table === 'products' ? state.products.find(p => p.id === id) : null;
-                const isSoftDeletedAlready = item && item.is_deleted;
-                const useSoftDelete = table === 'products' && !isSoftDeletedAlready;
-
-                if (!confirm(useSoftDelete ? 'Move this item to Trash?' : 'Permanent Action: Are you sure you want to delete this master entry?')) return;
+                if (!confirm('Permanent Action: Are you sure you want to delete this master entry?')) return;
 
                 try {
-                    let error;
-                    if (useSoftDelete) {
-                        const { error: err } = await supabaseClient.from(table).update({ is_deleted: true }).eq('id', id);
-                        error = err;
-                    } else {
-                        const { error: err } = await supabaseClient.from(table).delete().eq('id', id);
-                        error = err;
-                    }
+                    const { error } = await supabaseClient.from(table).delete().eq('id', id);
                     if (error) throw error;
                     await api.masters.fetch();
-                    api.notifications.show(useSoftDelete ? 'Item moved to Trash' : 'Item deleted permanently');
+                    api.notifications.show('Item deleted permanently');
                 } catch (err) {
                     console.error('Delete Error:', err);
                     alert('Delete Failed: ' + err.message);
                 }
             },
             restore: async (table, id) => {
-                try {
-                    const { error } = await supabaseClient.from(table).update({ is_deleted: false }).eq('id', id);
-                    if (error) throw error;
-                    await api.masters.fetch();
-                    api.notifications.show('Item restored successfully');
-                } catch (err) {
-                    console.error('Restore Error:', err);
-                    alert('Restore Failed: ' + err.message);
-                }
+                // Restoration logic for soft-deleted items if needed in future
+                api.notifications.show('Restore not applicable for current modules', 'warning');
             }
         },
         settings: {
@@ -7360,9 +7086,24 @@ try {
                             conversion_date: ui.invoice.sourcePfiId ? new Date().toISOString() : null,
                             contact_name: document.getElementById('inv-contact-name')?.value || null,
                             contact_role: document.getElementById('inv-contact-role')?.value || null,
-                            contact_dept: document.getElementById('inv-contact-dept')?.value || null
+                            contact_dept: document.getElementById('inv-contact-dept')?.value || null,
+                            items: []
                         }
                     };
+
+                    document.querySelectorAll('#inv-line-items tr').forEach(row => {
+                        const name = row.querySelector('.item-name').value;
+                        if (!name) return;
+
+                        invoice.metadata.items.push({
+                            product_name: name,
+                            hsn: row.querySelector('.item-hsn').value,
+                            qty: parseFloat(row.querySelector('.item-qty').value) || 0,
+                            rate: parseFloat(row.querySelector('.item-rate').value) || 0,
+                            discount: parseFloat(row.querySelector('.item-discount').value) || 0,
+                            tax_rate: 18 // Defaulting to 18% for now as per current app logic or we can make it dynamic later
+                        });
+                    });
 
                     if (!invoice.customer_id) throw new Error('Please select a customer');
 
@@ -7386,29 +7127,6 @@ try {
 
                     if (invError) throw invError;
 
-                    // Save/Update Line Items (Simplified: delete and re-insert)
-                    if (ui.invoice.activeId) {
-                        await supabaseClient.from('invoice_items').delete().eq('invoice_id', ui.invoice.activeId);
-                    }
-
-                    const lineItems = [];
-                    document.querySelectorAll('#inv-line-items tr').forEach(row => {
-                        const productId = row.querySelector('.item-product-id').value;
-                        if (!productId) return;
-
-                        lineItems.push({
-                            invoice_id: invData.id,
-                            product_id: productId,
-                            qty: parseFloat(row.querySelector('.item-qty').value) || 0,
-                            rate: parseFloat(row.querySelector('.item-rate').value) || 0,
-                            discount: parseFloat(row.querySelector('.item-discount').value) || 0,
-                            hsn_code: row.querySelector('.item-hsn').value,
-                            user_id: state.user.id
-                        });
-                    });
-
-                    const { error: itemError } = await supabaseClient.from('invoice_items').insert(lineItems);
-                    if (itemError) throw itemError;
 
                     // If converted from PFI, mark PFI as closed
                     if (ui.invoice.sourcePfiId) {
@@ -7540,14 +7258,25 @@ try {
                         .single();
                     if (invErr) throw invErr;
 
-                    const { data: items, error: itemErr } = await supabaseClient
-                        .from('invoice_items')
-                        .select('*, products(*)')
-                        .eq('invoice_id', id);
-                    if (itemErr) throw itemErr;
-
                     const { jsPDF } = window.jspdf;
                     const doc = new jsPDF();
+                    
+                    let items = [];
+                    // Try new metadata format first
+                    if (inv.metadata?.items && Array.isArray(inv.metadata.items)) {
+                        items = inv.metadata.items.map(it => ({
+                            ...it,
+                            products: { name: it.product_name, hsn: it.hsn }
+                        }));
+                    } else {
+                        // Legacy fallback
+                        const { data: legacyItems, error: itemErr } = await supabaseClient
+                            .from('invoice_items')
+                            .select('*, products(*)')
+                            .eq('invoice_id', id);
+                        if (itemErr) throw itemErr;
+                        items = legacyItems || [];
+                    }
 
                     // Header
                     doc.setFontSize(22);
@@ -7728,12 +7457,28 @@ try {
                 // Create a map for IDs to easily fetch items later if needed, 
                 // but let's fetch ALL items for these invoices for HSN summary
                 const invIds = state.invoices.map(i => i.id);
-                const { data: allItems } = await supabaseClient
+                const { data: legacyItems } = await supabaseClient
                     .from('invoice_items')
-                    .select('*, products(name)')
+                    .select('*, products(name, gst, hsn)')
                     .in('invoice_id', invIds);
 
+                // Collect all items (Legacy + JSONB)
+                const allItems = [];
+                if (legacyItems) allItems.push(...legacyItems.map(it => ({ ...it, _source: 'legacy' })));
+
                 state.invoices.forEach(inv => {
+                    if (inv.metadata?.items && Array.isArray(inv.metadata.items)) {
+                        inv.metadata.items.forEach(it => {
+                            allItems.push({
+                                ...it,
+                                invoice_id: inv.id,
+                                hsn_code: it.hsn,
+                                product_name: it.product_name,
+                                _source: 'json'
+                            });
+                        });
+                    }
+
                     if (!isWithinFY(inv.date, state.fy)) return;
                     const exRate = inv.exchange_rate || 1.0;
                     const taxable = inv.subtotal * exRate;
@@ -7773,10 +7518,11 @@ try {
                 });
 
                 // HSN Aggregation (Monthly Wise)
-                if (allItems) {
+                if (allItems.length > 0) {
                     allItems.forEach(item => {
                         const inv = state.invoices.find(i => i.id === item.invoice_id);
                         if (!inv || !inv.date) return;
+                        if (!isWithinFY(inv.date, state.fy)) return;
 
                         const exRate = inv.exchange_rate || 1.0;
                         const hsn = item.hsn_code || 'N/A';
@@ -7794,7 +7540,7 @@ try {
                         if (!results.hsnByMonth[monthLabel][category][hsn]) {
                             results.hsnByMonth[monthLabel][category][hsn] = {
                                 code: hsn,
-                                desc: item.products?.name || 'Item',
+                                desc: item.product_name || item.products?.name || 'Item',
                                 taxable: 0,
                                 cgst: 0,
                                 sgst: 0,
@@ -7806,7 +7552,7 @@ try {
                         if (!results.hsn[hsn]) {
                             results.hsn[hsn] = {
                                 code: hsn,
-                                desc: item.products?.name || 'Item',
+                                desc: item.product_name || item.products?.name || 'Item',
                                 taxable: 0,
                                 cgst: 0,
                                 sgst: 0,
@@ -7815,8 +7561,17 @@ try {
                             };
                         }
                         const rowTaxable = (item.qty * item.rate * (1 - (item.discount || 0) / 100)) * exRate;
-                        const prodMain = state.products.find(p => p.id === item.product_id);
-                        const gstRate = (inv.type === 'Regular') ? (prodMain?.gst || 0) : 0;
+                        
+                        let gstRate = 0;
+                        if (inv.type !== 'Without GST' && inv.type !== 'LUT / Export') {
+                            if (item._source === 'legacy') {
+                                gstRate = item.products?.gst || 0;
+                            } else {
+                                // Default to 18 if no specific tax rate found in JSON metadata
+                                gstRate = item.tax_rate !== undefined ? item.tax_rate : (item.gst !== undefined ? item.gst : 18);
+                            }
+                        }
+                        
                         const rowTax = (rowTaxable * gstRate) / 100;
 
                         const custStateCode = String(inv.customers?.state || '').substring(0, 2);
@@ -8086,10 +7841,22 @@ try {
                         // Line Items
                         const container = document.getElementById('inv-line-items');
                         container.innerHTML = '';
-                        if (pfi.proforma_items && pfi.proforma_items.length > 0) {
+                        
+                        // Try new metadata format first
+                        if (pfi.metadata?.items && Array.isArray(pfi.metadata.items)) {
+                            pfi.metadata.items.forEach(item => {
+                                ui.invoice.addItem({
+                                    product_name: item.product_name,
+                                    hsn: item.hsn || '',
+                                    qty: item.qty,
+                                    rate: item.rate,
+                                    discount: item.discount || 0
+                                });
+                            });
+                        } else if (pfi.proforma_items && pfi.proforma_items.length > 0) {
+                            // Legacy fallback
                             pfi.proforma_items.forEach(item => {
                                 ui.invoice.addItem({
-                                    product_id: item.product_id,
                                     product_name: item.products?.name || '',
                                     hsn: item.hsn_code || item.products?.hsn || '',
                                     qty: item.qty,
@@ -8152,22 +7919,28 @@ try {
                         // Line Items
                         const container = document.getElementById('pfi-line-items');
                         container.innerHTML = '';
-                        if (quotation.quotation_items && quotation.quotation_items.length > 0) {
+                        
+                        // Try new metadata format first
+                        if (quotation.metadata?.items && Array.isArray(quotation.metadata.items)) {
+                            quotation.metadata.items.forEach(item => {
+                                ui.proforma_v2.addItem({
+                                    product_name: item.product_name,
+                                    hsn: item.hsn || '',
+                                    qty: item.qty,
+                                    rate: item.rate,
+                                    discount: item.discount || 0
+                                });
+                            });
+                        } else if (quotation.quotation_items && quotation.quotation_items.length > 0) {
+                            // Legacy fallback
                             quotation.quotation_items.forEach(item => {
-                                ui.proforma_v2.addItem();
-                                const lastRow = container.lastElementChild;
-                                if (lastRow) {
-                                    const prodSelectInput = lastRow.querySelector('.product-search-input');
-                                    const prodIdInput = lastRow.querySelector('.product-id-hidden');
-                                    prodIdInput.value = item.product_id;
-                                    const product = state.products.find(pr => pr.id === item.product_id);
-                                    if (product) prodSelectInput.value = product.name;
-
-                                    lastRow.querySelector('.hsn-input').value = item.hsn_code || '';
-                                    lastRow.querySelector('.qty-input').value = item.qty || 1;
-                                    lastRow.querySelector('.rate-input').value = item.rate || 0;
-                                    lastRow.querySelector('.discount-input').value = item.discount || 0;
-                                }
+                                ui.proforma_v2.addItem({
+                                    product_name: item.products?.name || '',
+                                    hsn: item.hsn_code || item.products?.hsn || '',
+                                    qty: item.qty,
+                                    rate: item.rate,
+                                    discount: item.discount || 0
+                                });
                             });
                         }
 
@@ -8226,10 +7999,22 @@ try {
                         // Line Items
                         const container = document.getElementById('inv-line-items');
                         container.innerHTML = '';
-                        if (quotation.quotation_items && quotation.quotation_items.length > 0) {
+                        
+                        // Try new metadata format first
+                        if (quotation.metadata?.items && Array.isArray(quotation.metadata.items)) {
+                            quotation.metadata.items.forEach(item => {
+                                ui.invoice.addItem({
+                                    product_name: item.product_name,
+                                    hsn: item.hsn || '',
+                                    qty: item.qty,
+                                    rate: item.rate,
+                                    discount: item.discount || 0
+                                });
+                            });
+                        } else if (quotation.quotation_items && quotation.quotation_items.length > 0) {
+                            // Legacy fallback
                             quotation.quotation_items.forEach(item => {
                                 ui.invoice.addItem({
-                                    product_id: item.product_id,
                                     product_name: item.products?.name || '',
                                     hsn: item.hsn_code || item.products?.hsn || '',
                                     qty: item.qty,
@@ -8275,27 +8060,27 @@ try {
                         customer_id: document.getElementById('doc-customer').value,
                         notes: document.getElementById('doc-notes').value,
                         total_amount: parseFloat(document.getElementById('doc-total').textContent.replace(/[₹,]/g, '')),
-                        user_id: state.user.id
+                        user_id: state.user.id,
+                        metadata: {
+                            items: []
+                        }
                     };
+
+                    document.querySelectorAll('.doc-item-name').forEach(input => {
+                        const row = input.closest('.line-item-row');
+                        doc.metadata.items.push({
+                            product_name: input.value,
+                            qty: parseFloat(row.querySelector('.doc-item-qty').value) || 0,
+                            rate: parseFloat(row.querySelector('.doc-item-rate').value) || 0
+                        });
+                    });
 
                     const { data: docData, error: docError } = await supabaseClient.from(tableMap[type]).insert(doc).select().single();
 
                     if (docError) throw docError;
-
-                    const lineItems = [];
-                    document.querySelectorAll('.doc-item-select').forEach(select => {
-                        const row = select.closest('.line-item-row');
-                        lineItems.push({
-                            [docIdFieldMap[type]]: docData.id,
-                            product_id: select.value,
-                            qty: parseFloat(row.querySelector('.doc-item-qty').value),
-                            rate: parseFloat(row.querySelector('.doc-item-rate').value),
-                            user_id: state.user.id
-                        });
-                    });
-
-                    const { error: itemError } = await supabaseClient.from(itemTableMap[type]).insert(lineItems);
-                    if (itemError) throw itemError;
+                    ui.modal.close();
+                    await api.docs.fetch(type);
+                    alert(`${type.charAt(0).toUpperCase() + type.slice(1, -1)} Saved Successfully!`);
 
                     ui.modal.close();
                     await api.docs.fetch(type);
@@ -8319,6 +8104,57 @@ try {
                     await api.docs.fetch(type);
                 } catch (err) {
                     alert('Delete failed: ' + err.message);
+                }
+            },
+            migrateLineItems: async () => {
+                console.log('🚀 Starting Line Item Migration...');
+                try {
+                    const migrations = [
+                        { table: 'invoices', itemTable: 'invoice_items', idField: 'invoice_id' },
+                        { table: 'proforma_invoices', itemTable: 'proforma_items', idField: 'proforma_id' },
+                        { table: 'quotations', itemTable: 'quotation_items', idField: 'quotation_id' }
+                    ];
+
+                    for (const m of migrations) {
+                        console.log(`Migrating ${m.table}...`);
+                        const { data: docs } = await supabaseClient.from(m.table).select('*');
+                        if (!docs) continue;
+
+                        for (const doc of docs) {
+                            // Only migrate if items don't exist in metadata
+                            if (!doc.metadata?.items || doc.metadata.items.length === 0) {
+                                const { data: items } = await supabaseClient
+                                    .from(m.itemTable)
+                                    .select('*, products(name, hsn)')
+                                    .eq(m.idField, doc.id);
+
+                                if (items && items.length > 0) {
+                                    const newMetadata = {
+                                        ...(doc.metadata || {}),
+                                        items: items.map(it => ({
+                                            product_name: it.products?.name || 'Unknown Item',
+                                            hsn: it.products?.hsn || it.hsn_code || '',
+                                            qty: it.qty || 1,
+                                            rate: it.rate || 0,
+                                            discount: it.discount || 0,
+                                            tax_rate: 18 // Default
+                                        }))
+                                    };
+                                    await supabaseClient.from(m.table).update({ metadata: newMetadata }).eq('id', doc.id);
+                                }
+                            }
+                        }
+                    }
+
+                    console.log('✅ Migration Complete!');
+                    api.notifications.show('Data Migration Successful');
+                    // Refresh state
+                    await api.invoices.fetch();
+                    await api.docs.fetch('proforma');
+                    await api.docs.fetch('quotations');
+                } catch (err) {
+                    console.error('Migration Failed:', err);
+                    api.notifications.show('Migration Failed: ' + err.message, 'error');
                 }
             },
             pdfModel: {
@@ -8346,11 +8182,29 @@ try {
                         .single();
                     if (docErr) throw docErr;
 
-                    const { data: items, error: itemErr } = await supabaseClient
-                        .from(itemTableMap[type])
-                        .select('*, products(*)')
-                        .eq(docIdFieldMap[type], id);
-                    if (itemErr) throw itemErr;
+                    let items = [];
+                    // Try new metadata format first
+                    if (doc.metadata?.items && Array.isArray(doc.metadata.items)) {
+                        const docType = doc.type || 'Regular';
+                        const defaultTax = (docType === 'Regular') ? 18 : 0;
+
+                        items = doc.metadata.items.map(it => ({
+                            ...it,
+                            products: { 
+                                name: it.product_name || 'Item', 
+                                hsn: it.hsn || '',
+                                gst: it.tax_rate !== undefined ? it.tax_rate : (it.gst !== undefined ? it.gst : defaultTax)
+                            }
+                        }));
+                    } else {
+                        // Legacy fallback
+                        const { data: legacyItems, error: itemErr } = await supabaseClient
+                            .from(itemTableMap[type])
+                            .select('*, products(*)')
+                            .eq(docIdFieldMap[type], id);
+                        if (itemErr) throw itemErr;
+                        items = legacyItems || [];
+                    }
 
                     return { doc, items };
                 },
