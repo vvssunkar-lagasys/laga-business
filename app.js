@@ -7499,7 +7499,16 @@ try {
                         bank_charges_deduction: parseFloat(document.getElementById('inv-bank-deduction')?.value) || 0,
                         pbg_amount: parseFloat(document.getElementById('inv-pbg')?.value) || 0,
                         other_deductions: parseFloat(document.getElementById('inv-other-deduction')?.value) || 0,
-                        status: isDraft ? 'Draft' : 'Pending',
+                        status: (() => {
+                            if (isDraft) return 'Draft';
+                            if (ui.invoice.activeId) {
+                                const existing = state.invoices.find(i => i.id === ui.invoice.activeId);
+                                if (existing && (existing.status === 'Paid' || existing.status === 'Cancelled' || existing.status === 'Pending')) {
+                                    return existing.status;
+                                }
+                            }
+                            return 'Pending';
+                        })(),
                         metadata: {
                             converted_from_pfi: ui.invoice.sourcePfiId || null,
                             conversion_date: ui.invoice.sourcePfiId ? new Date().toISOString() : null,
