@@ -9300,7 +9300,7 @@ try {
                             `Invoice: ${inv.invoice_no}`,
                             debit.toLocaleString('en-IN', { minimumFractionDigits: 2 }),
                             credit.toLocaleString('en-IN', { minimumFractionDigits: 2 }),
-                            runningBalance.toLocaleString('en-IN', { minimumFractionDigits: 2 })
+                            (debit - credit).toLocaleString('en-IN', { minimumFractionDigits: 2 })
                         ];
                     });
 
