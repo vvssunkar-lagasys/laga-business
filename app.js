@@ -130,6 +130,7 @@ try {
 
         // 3. Setup Listeners
         setupGlobalListeners();
+        ui.spotlight.init();
 
         // 4. Check Auth Session
         await checkAuth();
@@ -503,7 +504,7 @@ try {
             </div>
         `;
         },
-        Customers: (items, filter = 'All Customers') => `
+        Customers: (items) => `
         <div class="animate-fade-in">
             <div class="dashboard-header">
                 <div class="dashboard-title">
@@ -512,9 +513,7 @@ try {
             </div>
 
             <div class="status-tabs">
-                <div class="tab-item ${filter === 'All Customers' ? 'active' : ''}" onclick="ui.customers.setFilter('All Customers')">All Customers <span class="tab-count">${items.length}</span></div>
-                <div class="tab-item ${filter === 'Groups' ? 'active' : ''}" onclick="ui.customers.setFilter('Groups')">Groups</div>
-                <div class="tab-item ${filter === 'Deleted' ? 'active' : ''}" onclick="ui.customers.setFilter('Deleted')">Deleted</div>
+                <div class="tab-item active">All Customers <span class="tab-count">${items.length}</span></div>
             </div>
 
             <div class="toolbar">
@@ -523,10 +522,7 @@ try {
                     <input type="text" class="form-input search-input" placeholder="Search customers by name, company, phone etc.." value="${ui.customers.searchQuery || ''}" oninput="ui.customers.search(this.value)">
                 </div>
                 <div class="ml-auto flex items-center gap-2">
-                    <button class="toolbar-btn">
-                        Actions
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                    </button>
+
                     <button onclick="ui.modal.open('customer')" class="bg-[#3b82f6] text-white px-6 py-2 rounded-lg font-bold hover:bg-blue-600 transition-all">+ New Customer</button>
                 </div>
             </div>
@@ -539,17 +535,23 @@ try {
                             <th>GSTIN</th>
                             <th>Primary Contact</th>
                             <th>Location</th>
+                            <th>Financials</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody class="text-sm">
                         ${items.map(c => {
             const stateName = Constants.States.find(s => s.code === c.state)?.name.split(' - ')[1] || c.state || '-';
+            const invs = state.invoices.filter(i => i.customer_id === c.id);
+            const totalRev = invs.reduce((sum, i) => sum + (i.total_amount || 0), 0);
+            const totalPaid = invs.filter(i => i.status === 'Paid').reduce((sum, i) => sum + (i.total_amount || 0), 0);
+            const outstanding = totalRev - totalPaid;
+
             return `
                             <tr class="product-row border-b border-slate-50 last:border-0 hover:bg-slate-50/50 transition-colors">
                                 <td class="p-4">
                                     <div class="flex items-center gap-3">
-                                        <div class="item-avatar bg-indigo-50 text-indigo-600">${c.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}</div>
+                                        <div class="item-avatar" style="${ui.utils.getAvatarStyle(c.name)}">${c.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}</div>
                                         <div>
                                             <button onclick="ui.customer.view('${c.id}')" class="font-bold text-slate-900 hover:text-blue-600 text-left">${c.name}</button>
                                             <div class="text-[10px] text-slate-400 font-medium tracking-wide">${c.email || ''}</div>
@@ -581,9 +583,24 @@ try {
                                     <div class="text-[10px] text-slate-400 font-medium">${stateName}</div>
                                 </td>
                                 <td class="p-4">
+                                    <div class="customer-financials">
+                                        <div class="fin-chip revenue" title="Total Sales">
+                                            <span class="fin-label">Sales</span>
+                                            <span class="fin-amount">₹${totalRev.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
+                                        </div>
+                                        <div class="fin-chip ${outstanding > 0 ? 'outstanding' : 'neutral'}" title="${outstanding > 0 ? 'Outstanding Balance' : 'Full Settled'}">
+                                            <span class="fin-label">${outstanding > 0 ? 'Due' : 'Cleared'}</span>
+                                            <span class="fin-amount">${outstanding > 0 ? '₹' + outstanding.toLocaleString('en-IN', { maximumFractionDigits: 0 }) : '—'}</span>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="p-4">
                                     <div class="flex items-center gap-2">
                                         <button onclick="ui.customer.view('${c.id}')" class="text-slate-400 hover:text-blue-600 transition-colors" title="View Details">
                                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                                        </button>
+                                        <button onclick="api.docs.generateLedger('${c.id}')" class="text-slate-400 hover:text-emerald-600 transition-colors" title="Statement of Account">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                                         </button>
                                         <button onclick="ui.modal.edit('customer', '${c.id}')" class="text-slate-400 hover:text-orange-500 transition-colors" title="Edit Customer">
                                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
@@ -647,7 +664,7 @@ try {
                             <h2>Tax Invoices</h2>
                         </div>
                         <div class="flex items-center gap-4">
-                            <button onclick="ui.modal.open('invoice')" class="bg-[#3b82f6] text-white px-6 py-2.5 rounded-xl font-bold hover:bg-blue-600 transition-all shadow-lg shadow-blue-200 active:scale-95 flex items-center gap-2">
+                            <button onclick="ui.invoice.activeId = null; ui.modal.open('invoice')" class="bg-[#3b82f6] text-white px-6 py-2.5 rounded-xl font-bold hover:bg-blue-600 transition-all shadow-lg shadow-blue-200 active:scale-95 flex items-center gap-2">
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
                                 Create Invoice
                             </button>
@@ -2334,7 +2351,7 @@ try {
                             (c.city && c.city.toLowerCase().includes(q))
                         );
                     }
-                    el.viewContainer.innerHTML = Templates.Customers(customers, ui.customers.filter);
+                    el.viewContainer.innerHTML = Templates.Customers(customers);
                     break;
                 case 'invoices':
                     el.viewContainer.innerHTML = Templates.Invoices(state.invoices, ui.sales.filter);
@@ -2406,6 +2423,26 @@ try {
 
     // --- UI Helpers ---
     const ui = {
+        utils: {
+            getAvatarStyle: (name) => {
+                if (!name) return '';
+                const colors = [
+                    { bg: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)', text: '#fff' },
+                    { bg: 'linear-gradient(135deg, #3b82f6 0%, #2dd4bf 100%)', text: '#fff' },
+                    { bg: 'linear-gradient(135deg, #f59e0b 0%, #ef4444 100%)', text: '#fff' },
+                    { bg: 'linear-gradient(135deg, #10b981 0%, #3b82f6 100%)', text: '#fff' },
+                    { bg: 'linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%)', text: '#fff' },
+                    { bg: 'linear-gradient(135deg, #f97316 0%, #facc15 100%)', text: '#fff' },
+                ];
+                let hash = 0;
+                for (let i = 0; i < name.length; i++) {
+                    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+                }
+                const index = Math.abs(hash) % colors.length;
+                const style = colors[index];
+                return `background: ${style.bg}; color: ${style.text}; border: none; font-weight: 700; text-shadow: 0 1px 2px rgba(0,0,0,0.1);`;
+            }
+        },
         dashboard: {
             initCharts: () => {
                 const ctx = document.getElementById('revenueTrendChart');
@@ -2553,13 +2590,8 @@ try {
         },
         customers: {
             searchQuery: '',
-            filter: 'All Customers',
             search: (query) => {
                 ui.customers.searchQuery = query;
-                render();
-            },
-            setFilter: (filter) => {
-                ui.customers.filter = filter;
                 render();
             }
         },
@@ -2586,30 +2618,30 @@ try {
                 const container = document.getElementById('additional-contacts-list');
                 const id = Date.now().toString() + Math.floor(Math.random() * 1000);
                 const div = document.createElement('div');
-                div.className = 'grid grid-cols-5 gap-4 items-start relative bg-slate-50 p-4 rounded-xl';
+                div.className = 'cf-contact-row';
                 div.id = `contact-${id}`;
                 div.innerHTML = `
                     <div>
-                        <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Name</label>
-                        <input type="text" name="extra_contact_name_${id}" class="form-input bg-white" placeholder="Name">
+                        <label class="cf-label">Name</label>
+                        <input type="text" name="extra_contact_name_${id}" class="form-input" placeholder="Name">
                     </div>
                     <div>
-                        <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Department</label>
-                        <input type="text" name="extra_contact_dept_${id}" class="form-input bg-white" placeholder="Department">
+                        <label class="cf-label">Department</label>
+                        <input type="text" name="extra_contact_dept_${id}" class="form-input" placeholder="Dept">
                     </div>
                     <div>
-                        <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Mobile</label>
-                        <input type="tel" name="extra_contact_mobile_${id}" class="form-input bg-white" placeholder="Mobile">
+                        <label class="cf-label">Mobile</label>
+                        <input type="tel" name="extra_contact_mobile_${id}" class="form-input" placeholder="Mobile">
                     </div>
                     <div>
-                        <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Email</label>
-                        <input type="email" name="extra_contact_email_${id}" class="form-input bg-white" placeholder="Email">
+                        <label class="cf-label">Email</label>
+                        <input type="email" name="extra_contact_email_${id}" class="form-input" placeholder="Email">
                     </div>
-                    <div class="relative">
-                        <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Designation</label>
-                        <input type="text" name="extra_contact_role_${id}" class="form-input bg-white" placeholder="Role">
-                        <button type="button" onclick="ui.customer.removeContact('${id}')" class="absolute -top-1 -right-1 bg-red-100 text-red-500 rounded-full w-5 h-5 flex items-center justify-center hover:bg-red-200">×</button>
+                    <div>
+                        <label class="cf-label">Designation</label>
+                        <input type="text" name="extra_contact_role_${id}" class="form-input" placeholder="Role">
                     </div>
+                    <button type="button" onclick="ui.customer.removeContact('${id}')" class="cf-remove-contact" title="Remove person">×</button>
                 `;
                 container.appendChild(div);
                 return id;
@@ -2720,165 +2752,209 @@ try {
 
                 if (type === 'customer') {
                     root.innerHTML = `
-                        <div class="modal-content bg-white p-8 rounded-3xl w-full max-w-5xl max-h-[90vh] overflow-y-auto animate-slide-up">
-                            <h3 class="text-2xl font-bold text-slate-900 mb-8 font-display">Add Contact/Customer</h3>
-                            <form id="customer-form" class="space-y-8">
+                        <div class="cf-modal">
+                            <!-- Header -->
+                            <div class="cf-header">
+                                <div class="cf-header-left">
+                                    <div class="cf-header-icon">
+                                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                                    </div>
+                                    <div>
+                                        <div class="cf-header-title">Add Contact / Customer</div>
+                                        <div class="cf-header-subtitle">Fill in the details below to create a new contact record</div>
+                                    </div>
+                                </div>
+                                <button type="button" onclick="ui.modal.close()" class="cf-close-btn">
+                                    <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
+                                </button>
+                            </div>
+
+                            <!-- Form -->
+                            <form id="customer-form">
                                 <input type="hidden" name="id" id="field-id">
-                                
-                                <!-- Company Details -->
-                                <div class="space-y-4">
-                                    <h4 class="text-sm font-bold text-slate-900 border-b border-slate-100 pb-2">Company Details</h4>
-                                    <div class="grid grid-cols-2 gap-6">
-                                        <div>
-                                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Company Name <span class="text-red-500">*</span></label>
-                                            <input type="text" name="name" class="form-input" required placeholder="Company Name" oninput="ui.customer.updateShippingTitle()">
+
+                                <div class="cf-body">
+                                    <!-- Section 1: Company Details -->
+                                    <div class="cf-section accent-blue">
+                                        <div class="cf-section-header">
+                                            <div class="cf-section-icon blue">
+                                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+                                            </div>
+                                            <span class="cf-section-title">Company Details</span>
                                         </div>
-                                        <div>
-                                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">GSTIN</label>
-                                            <input type="text" name="gstin" class="form-input" placeholder="GSTIN">
+                                        <div class="cf-grid-full" style="margin-bottom: 0.875rem;">
+                                            <div>
+                                                <label class="cf-label">Company Name <span class="required">*</span></label>
+                                                <input type="text" name="name" class="form-input" required placeholder="Enter company or individual name" oninput="ui.customer.updateShippingTitle()">
+                                            </div>
                                         </div>
-                                        <div>
-                                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">PAN Number</label>
-                                            <input type="text" name="pan_no" class="form-input" placeholder="PAN Number">
+                                        <div class="cf-grid-2">
+                                            <div>
+                                                <label class="cf-label">GSTIN</label>
+                                                <input type="text" name="gstin" class="form-input" placeholder="e.g. 27AABCU9603R1ZM">
+                                            </div>
+                                            <div>
+                                                <label class="cf-label">PAN Number</label>
+                                                <input type="text" name="pan_no" class="form-input" placeholder="e.g. AABCU9603R">
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Section 2: Primary Contact -->
+                                    <div class="cf-section accent-emerald">
+                                        <div class="cf-section-header">
+                                            <div class="cf-section-icon emerald">
+                                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                            </div>
+                                            <span class="cf-section-title">Primary Contact Person</span>
+                                        </div>
+                                        <div class="cf-grid-3" style="margin-bottom: 0.875rem;">
+                                            <div>
+                                                <label class="cf-label">Name</label>
+                                                <input type="text" name="contact_name" class="form-input" placeholder="Contact name">
+                                            </div>
+                                            <div>
+                                                <label class="cf-label">Department</label>
+                                                <input type="text" name="contact_dept" class="form-input" placeholder="e.g. Procurement">
+                                            </div>
+                                            <div>
+                                                <label class="cf-label">Designation</label>
+                                                <input type="text" name="contact_role" class="form-input" placeholder="e.g. Manager">
+                                            </div>
+                                        </div>
+                                        <div class="cf-grid-3">
+                                            <div>
+                                                <label class="cf-label">Mobile No</label>
+                                                <input type="tel" name="contact_mobile" class="form-input" placeholder="+91 XXXXX XXXXX">
+                                            </div>
+                                            <div>
+                                                <label class="cf-label">Phone No</label>
+                                                <input type="tel" name="contact_phone" class="form-input" placeholder="Landline">
+                                            </div>
+                                            <div>
+                                                <label class="cf-label">Email</label>
+                                                <input type="email" name="contact_email" class="form-input" placeholder="email@company.com">
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Section 3: Additional Contacts -->
+                                    <div class="cf-section accent-purple">
+                                        <div class="cf-section-header" style="margin-bottom: 0.75rem;">
+                                            <div class="cf-section-icon purple">
+                                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+                                            </div>
+                                            <span class="cf-section-title" style="flex:1;">Additional Contacts</span>
+                                            <button type="button" onclick="ui.customer.addContact()" class="cf-add-btn">
+                                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+                                                Add Person
+                                            </button>
+                                        </div>
+                                        <div id="additional-contacts-list" style="display: flex; flex-direction: column; gap: 0.5rem;">
+                                            <!-- Dynamic Rows -->
+                                        </div>
+                                    </div>
+
+                                    <!-- Section 4: Addresses -->
+                                    <div class="cf-section accent-orange">
+                                        <div class="cf-section-header">
+                                            <div class="cf-section-icon orange">
+                                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                                            </div>
+                                            <span class="cf-section-title">Addresses</span>
+                                        </div>
+                                        <div class="cf-address-grid">
+                                            <!-- Billing Address -->
+                                            <div class="cf-address-card">
+                                                <div class="cf-address-card-header">
+                                                    <span class="cf-address-card-title">Billing Address</span>
+                                                </div>
+                                                <div>
+                                                    <label class="cf-label">Country</label>
+                                                    <select name="billing_country" class="form-input">
+                                                        ${Constants.Countries.map(c => `<option value="${c}" ${c === 'India' ? 'selected' : ''}>${c}</option>`).join('')}
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label class="cf-label">Address Line 1 <span class="required">*</span></label>
+                                                    <input type="text" name="billing_address1" class="form-input" required placeholder="Street, Building">
+                                                </div>
+                                                <div>
+                                                    <label class="cf-label">Address Line 2</label>
+                                                    <input type="text" name="billing_address2" class="form-input" placeholder="Area, Landmark">
+                                                </div>
+                                                <div class="cf-inline-2">
+                                                    <div>
+                                                        <label class="cf-label">City</label>
+                                                        <input type="text" name="billing_city" class="form-input">
+                                                    </div>
+                                                    <div>
+                                                        <label class="cf-label">Pincode</label>
+                                                        <input type="text" name="billing_pincode" class="form-input">
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <label class="cf-label">State</label>
+                                                    <select name="state" class="form-input">
+                                                        <option value="">Select State...</option>
+                                                        ${Constants.States.map(s => `<option value="${s.code}">${s.name}</option>`).join('')}
+                                                    </select>
+                                                </div>
+                                            </div>
+
+                                            <!-- Shipping Address -->
+                                            <div class="cf-address-card">
+                                                <div class="cf-address-card-header">
+                                                    <span class="cf-address-card-title">Shipping Address</span>
+                                                    <label class="cf-same-billing">
+                                                        <input type="checkbox" id="same-as-billing" onchange="ui.customer.copyBilling()">
+                                                        Same as Billing
+                                                    </label>
+                                                </div>
+                                                <div>
+                                                    <label class="cf-label">Title</label>
+                                                    <input type="text" name="shipping_title" class="form-input" style="background:#f8fafc;" placeholder="Auto-filled from Company Name">
+                                                </div>
+                                                <div>
+                                                    <label class="cf-label">Country</label>
+                                                    <select name="shipping_country" class="form-input">
+                                                        ${Constants.Countries.map(c => `<option value="${c}" ${c === 'India' ? 'selected' : ''}>${c}</option>`).join('')}
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label class="cf-label">Address Line 1 <span class="required">*</span></label>
+                                                    <input type="text" name="shipping_address1" class="form-input" required placeholder="Street, Building">
+                                                </div>
+                                                <div>
+                                                    <label class="cf-label">Address Line 2</label>
+                                                    <input type="text" name="shipping_address2" class="form-input" placeholder="Area, Landmark">
+                                                </div>
+                                                <div class="cf-inline-2">
+                                                    <div>
+                                                        <label class="cf-label">City</label>
+                                                        <input type="text" name="shipping_city" class="form-input">
+                                                    </div>
+                                                    <div>
+                                                        <label class="cf-label">Pincode</label>
+                                                        <input type="text" name="shipping_pincode" class="form-input">
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <label class="cf-label">State</label>
+                                                    <select name="shipping_state" class="form-input">
+                                                        <option value="">Select State...</option>
+                                                        ${Constants.States.map(s => `<option value="${s.code}">${s.name}</option>`).join('')}
+                                                    </select>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
 
-                                <!-- Contact Person -->
-                                <div class="space-y-4">
-                                    <h4 class="text-sm font-bold text-slate-900 border-b border-slate-100 pb-2">Primary Contact Person</h4>
-                                    <div class="grid grid-cols-6 gap-4">
-                                        <div class="col-span-1">
-                                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Name</label>
-                                            <input type="text" name="contact_name" class="form-input" placeholder="Name">
-                                        </div>
-                                        <div>
-                                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Department</label>
-                                            <input type="text" name="contact_dept" class="form-input" placeholder="Department">
-                                        </div>
-                                        <div>
-                                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Designation</label>
-                                            <input type="text" name="contact_role" class="form-input" placeholder="Role">
-                                        </div>
-                                        <div>
-                                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Mobile No</label>
-                                            <input type="tel" name="contact_mobile" class="form-input" placeholder="Mobile No">
-                                        </div>
-                                        <div>
-                                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Phone No</label>
-                                            <input type="tel" name="contact_phone" class="form-input" placeholder="Phone No">
-                                        </div>
-                                        <div>
-                                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Email</label>
-                                            <input type="email" name="contact_email" class="form-input" placeholder="Email Address">
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- Additional Contacts -->
-                                <div class="space-y-4">
-                                    <div class="flex justify-between items-center border-b border-slate-100 pb-2">
-                                        <h4 class="text-sm font-bold text-slate-900">Additional Contacts</h4>
-                                        <button type="button" onclick="ui.customer.addContact()" class="text-[10px] font-bold text-blue-600 hover:text-blue-700 uppercase tracking-widest flex items-center gap-1">
-                                            <span class="text-lg leading-none">+</span> Add Person
-                                        </button>
-                                    </div>
-                                    <div id="additional-contacts-list" class="space-y-3">
-                                        <!-- Dynamic Rows -->
-                                    </div>
-                                </div>
-
-                                <div class="grid grid-cols-2 gap-12">
-                                    <!-- Billing Address -->
-                                    <div class="space-y-4">
-                                        <h4 class="text-sm font-bold text-slate-900 border-b border-slate-100 pb-2">Billing Address</h4>
-                                        <div class="space-y-4">
-                                            <div>
-                                                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Country</label>
-                                                <select name="billing_country" class="form-input">
-                                                    ${Constants.Countries.map(c => `<option value="${c}" ${c === 'India' ? 'selected' : ''}>${c}</option>`).join('')}
-                                                </select>
-                                            </div>
-                                            <div>
-                                                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Address Line 1 <span class="text-red-500">*</span></label>
-                                                <input type="text" name="billing_address1" class="form-input" required placeholder="Street, Building">
-                                            </div>
-                                            <div>
-                                                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Address Line 2</label>
-                                                <input type="text" name="billing_address2" class="form-input" placeholder="Area, Landmark">
-                                            </div>
-                                            <div class="grid grid-cols-2 gap-4">
-                                                <div>
-                                                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">City</label>
-                                                    <input type="text" name="billing_city" class="form-input">
-                                                </div>
-                                                <div>
-                                                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Pincode</label>
-                                                    <input type="text" name="billing_pincode" class="form-input">
-                                                </div>
-                                            </div>
-                                            <div>
-                                                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">State</label>
-                                                <select name="state" class="form-input">
-                                                    <option value="">Select State...</option>
-                                                    ${Constants.States.map(s => `<option value="${s.code}">${s.name}</option>`).join('')}
-                                                </select>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <!-- Shipping Address -->
-                                    <div class="space-y-4">
-                                        <div class="flex justify-between items-center border-b border-slate-100 pb-2">
-                                            <h4 class="text-sm font-bold text-slate-900">Shipping Address</h4>
-                                            <label class="flex items-center gap-2 cursor-pointer">
-                                                <input type="checkbox" id="same-as-billing" class="rounded text-blue-600 focus:ring-blue-500" onchange="ui.customer.copyBilling()">
-                                                <span class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Same as Billing</span>
-                                            </label>
-                                        </div>
-                                        <div class="space-y-4">
-                                            <div>
-                                                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Title</label>
-                                                <input type="text" name="shipping_title" class="form-input bg-slate-50" placeholder="Auto-filled from Company Name">
-                                            </div>
-                                            <div>
-                                                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Country</label>
-                                                <select name="shipping_country" class="form-input">
-                                                    ${Constants.Countries.map(c => `<option value="${c}" ${c === 'India' ? 'selected' : ''}>${c}</option>`).join('')}
-                                                </select>
-                                            </div>
-                                            <div>
-                                                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Address Line 1 <span class="text-red-500">*</span></label>
-                                                <input type="text" name="shipping_address1" class="form-input" required placeholder="Street, Building">
-                                            </div>
-                                            <div>
-                                                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Address Line 2</label>
-                                                <input type="text" name="shipping_address2" class="form-input" placeholder="Area, Landmark">
-                                            </div>
-                                            <div class="grid grid-cols-2 gap-4">
-                                                <div>
-                                                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">City</label>
-                                                    <input type="text" name="shipping_city" class="form-input">
-                                                </div>
-                                                <div>
-                                                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Pincode</label>
-                                                    <input type="text" name="shipping_pincode" class="form-input">
-                                                </div>
-                                            </div>
-                                            <div>
-                                                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">State</label>
-                                                <select name="shipping_state" class="form-input">
-                                                    <option value="">Select State...</option>
-                                                    ${Constants.States.map(s => `<option value="${s.code}">${s.name}</option>`).join('')}
-                                                </select>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="flex justify-end gap-3 pt-6 border-t border-slate-100">
-                                    <button type="button" onclick="ui.modal.close()" class="px-6 py-2 text-slate-500 font-medium hover:text-slate-700 transition-colors">Cancel</button>
-                                    <button type="submit" class="btn-primary">Save Contact</button>
+                                <!-- Footer -->
+                                <div class="cf-footer">
+                                    <button type="button" onclick="ui.modal.close()" class="cf-btn-cancel">Cancel</button>
+                                    <button type="submit" class="cf-btn-save">Save Contact</button>
                                 </div>
                             </form>
                         </div>
@@ -2893,121 +2969,237 @@ try {
                     const billingState = Constants.States.find(s => s.code === c.state)?.name || c.state || '-';
                     const shippingState = Constants.States.find(s => s.code === c.shipping_state)?.name || c.shipping_state || '-';
 
+                    // --- Calculate 360 Stats ---
+                    const custQuotes = state.quotations.filter(q => q.customer_id === c.id);
+                    const custProformas = state.proforma.filter(p => p.customer_id === c.id);
+                    const custInvoices = state.invoices.filter(i => i.customer_id === c.id);
+
+                    const totalRevenue = custInvoices.reduce((sum, i) => sum + (parseFloat(i.total_amount) || 0), 0);
+                    const outstanding = custInvoices
+                        .filter(i => i.status !== 'Paid' && i.status !== 'Closed')
+                        .reduce((sum, i) => sum + (parseFloat(i.total_amount) || 0), 0);
+                    const deductions = custInvoices.reduce((sum, i) => sum + (parseFloat(i.bank_charges) || 0), 0);
+
+                    const symbol = '₹'; 
+                    // ---------------------------
+
                     const contactsList = c.contacts && Array.isArray(c.contacts) ? c.contacts.filter(con => !con.is_primary).map(contact => `
-                        <div class="p-3 bg-slate-50 rounded-lg border border-slate-100">
-                            <div class="font-bold text-slate-900">${contact.name}</div>
-                            <div class="text-xs text-slate-500">${contact.dept || '-'} | ${contact.role || 'No Role'}</div>
-                            <div class="mt-2 text-xs space-y-1">
-                                <div class="flex items-center gap-2"><svg class="w-3 h-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a2 2 0 011.917 1.285l1.257 3.771a2 2 0 01-1.917 2.715H9.196a11.722 11.722 0 005.093 5.093v-1.114a2 2 0 012.715-1.917l3.771 1.257c.54.18.917.684.917 1.257V21a2 2 0 01-2 2h-1c-10.493 0-19-8.507-19-19V5z"></path></svg> ${contact.mobile || '-'}</div>
-                                <div class="flex items-center gap-2"><svg class="w-3 h-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg> ${contact.email || '-'}</div>
+                        <div class="cv-contact-card">
+                            <div class="cv-contact-header">
+                                <div class="cv-contact-avatar">
+                                    ${contact.name ? contact.name.substring(0, 1).toUpperCase() : '?'}
+                                </div>
+                                <div class="cv-contact-info">
+                                    <h5>${contact.name}</h5>
+                                    <p>${contact.role || 'No Role'} • ${contact.dept || 'No Dept'}</p>
+                                </div>
+                            </div>
+                            <div class="cv-contact-details">
+                                ${contact.mobile ? `
+                                <a href="tel:${contact.mobile}" class="cv-contact-link">
+                                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a2 2 0 011.917 1.285l1.257 3.771a2 2 0 01-1.917 2.715H9.196a11.722 11.722 0 005.093 5.093v-1.114a2 2 0 012.715-1.917l3.771 1.257c.54.18.917.684.917 1.257V21a2 2 0 01-2 2h-1c-10.493 0-19-8.507-19-19V5z"/></svg>
+                                    ${contact.mobile}
+                                </a>` : ''}
+                                ${contact.email ? `
+                                <a href="mailto:${contact.email}" class="cv-contact-link">
+                                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                                    ${contact.email}
+                                </a>` : ''}
                             </div>
                         </div>
-                    `).join('') : '<div class="text-slate-400 italic text-sm">No additional contacts.</div>';
+                    `).join('') : '<div class="cf-contacts-empty text-slate-400 italic text-sm">No additional contacts.</div>';
 
                     root.innerHTML = `
-                        <div class="modal-content bg-white p-8 rounded-3xl w-full max-w-4xl relative animate-slide-up max-h-[90vh] overflow-y-auto">
-                            <button onclick="ui.modal.close()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
-                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                            </button>
-                            
-                            <div class="flex items-start justify-between mb-8 border-b border-slate-100 pb-6">
-                                <div>
-                                    <div class="flex items-center gap-3">
-                                        <div class="w-12 h-12 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center font-bold text-xl">
-                                            ${c.name ? c.name.substring(0, 2).toUpperCase() : '??'}
-                                        </div>
-                                        <div>
-                                            <h2 class="text-2xl font-bold text-slate-900">${c.name}</h2>
-                                            <div class="flex items-center gap-2 mt-1">
-                                                <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-600">GSTIN: ${c.gstin || 'N/A'}</span>
-                                                <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-600">PAN: ${c.pan_no || 'N/A'}</span>
-                                            </div>
+                        <div class="cf-modal">
+                            <!-- Header -->
+                            <div class="cv-header">
+                                <div class="cv-header-left">
+                                    <div class="cv-avatar">
+                                        ${c.name ? c.name.substring(0, 2).toUpperCase() : '??'}
+                                    </div>
+                                    <div class="cv-header-info">
+                                        <h2>${c.name}</h2>
+                                        <div class="cv-badge-group">
+                                            <span class="cv-badge">GSTIN: <b>${c.gstin || 'N/A'}</b></span>
+                                            <span class="cv-badge">PAN: <b>${c.pan_no || 'N/A'}</b></span>
                                         </div>
                                     </div>
                                 </div>
-                                <div class="flex gap-3">
-                                    <button onclick="ui.customer.delete('${c.id}')" class="px-4 py-2 bg-red-50 text-red-600 rounded-lg font-bold hover:bg-red-100 text-sm transition-colors border border-red-100">Delete</button>
-                                    <button onclick="ui.modal.edit('customer', '${c.id}')" class="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 text-sm transition-colors shadow-lg shadow-blue-200">Edit Details</button>
+                                <button type="button" onclick="ui.modal.close()" class="cf-close-btn">
+                                    <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
+                                </button>
+                            </div>
+
+                            <div class="cf-body">
+                                <!-- Customer 360 Overview -->
+                                <div class="cv-stats-grid">
+                                    <div class="cv-stat-card blue">
+                                        <div class="cv-stat-icon">
+                                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/></svg>
+                                        </div>
+                                        <span class="cv-stat-label">Quotations</span>
+                                        <span class="cv-stat-value">${custQuotes.length}</span>
+                                    </div>
+                                    <div class="cv-stat-card violet">
+                                        <div class="cv-stat-icon">
+                                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                                        </div>
+                                        <span class="cv-stat-label">Proforma</span>
+                                        <span class="cv-stat-value">${custProformas.length}</span>
+                                    </div>
+                                    <div class="cv-stat-card emerald">
+                                        <div class="cv-stat-icon">
+                                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                        </div>
+                                        <span class="cv-stat-label">Invoices</span>
+                                        <span class="cv-stat-value">${custInvoices.length}</span>
+                                    </div>
+                                    <div class="cv-stat-card blue">
+                                        <div class="cv-stat-icon">
+                                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                        </div>
+                                        <span class="cv-stat-label">Total Revenue</span>
+                                        <span class="cv-stat-value">${symbol}${totalRevenue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
+                                    </div>
+                                    <div class="cv-stat-card rose">
+                                        <div class="cv-stat-icon">
+                                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                                        </div>
+                                        <span class="cv-stat-label">Outstanding</span>
+                                        <span class="cv-stat-value">${symbol}${outstanding.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
+                                    </div>
+                                    <div class="cv-stat-card amber">
+                                        <div class="cv-stat-icon">
+                                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+                                        </div>
+                                        <span class="cv-stat-label">Deductions</span>
+                                        <span class="cv-stat-value">${symbol}${deductions.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
+                                    </div>
+                                </div>
+
+                                <div class="grid grid-cols-3 gap-6">
+                                    <!-- Main Details -->
+                                    <div class="col-span-2 space-y-6">
+                                        <!-- Section 1: Business Overview -->
+                                        <div class="cf-section accent-blue">
+                                            <div class="cf-section-header">
+                                                <div class="cf-section-icon blue">
+                                                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+                                                </div>
+                                                <span class="cf-section-title">Business Overview</span>
+                                            </div>
+                                            <div class="cv-data-grid">
+                                                <div class="cv-data-item">
+                                                    <span class="cv-data-label">Company Name</span>
+                                                    <span class="cv-data-value">${c.name}</span>
+                                                </div>
+                                                <div class="cv-data-item">
+                                                    <span class="cv-data-label">GSTIN</span>
+                                                    <span class="cv-data-value">${c.gstin || 'Not Provided'}</span>
+                                                </div>
+                                                <div class="cv-data-item">
+                                                    <span class="cv-data-label">PAN Number</span>
+                                                    <span class="cv-data-value">${c.pan_no || 'Not Provided'}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Section 2: Primary Contact -->
+                                        <div class="cf-section accent-emerald">
+                                            <div class="cf-section-header">
+                                                <div class="cf-section-icon emerald">
+                                                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                                                </div>
+                                                <span class="cf-section-title">Primary Contact Person</span>
+                                            </div>
+                                            <div class="cv-data-grid" style="grid-template-columns: repeat(3, 1fr);">
+                                                <div class="cv-data-item">
+                                                    <span class="cv-data-label">Name</span>
+                                                    <span class="cv-data-value">${c.contact_name || '-'}</span>
+                                                </div>
+                                                <div class="cv-data-item">
+                                                    <span class="cv-data-label">Role</span>
+                                                    <span class="cv-data-value">${c.contact_role || primaryContact?.role || '-'}</span>
+                                                </div>
+                                                <div class="cv-data-item">
+                                                    <span class="cv-data-label">Department</span>
+                                                    <span class="cv-data-value">${c.contact_dept || primaryContact?.dept || '-'}</span>
+                                                </div>
+                                                <div class="cv-data-item">
+                                                    <span class="cv-data-label">Mobile</span>
+                                                    <span class="cv-data-value">${c.contact_mobile || primaryContact?.mobile || '-'}</span>
+                                                </div>
+                                                <div class="cv-data-item">
+                                                    <span class="cv-data-label">Email</span>
+                                                    <span class="cv-data-value">${c.contact_email || primaryContact?.email || '-'}</span>
+                                                </div>
+                                                <div class="cv-data-item">
+                                                    <span class="cv-data-label">Phone</span>
+                                                    <span class="cv-data-value">${c.contact_phone || primaryContact?.phone || '-'}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Section 3: Addresses -->
+                                        <div class="cf-section accent-orange">
+                                            <div class="cf-section-header">
+                                                <div class="cf-section-icon orange">
+                                                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                                                </div>
+                                                <span class="cf-section-title">Addresses</span>
+                                            </div>
+                                            <div class="cf-address-grid">
+                                                <div class="cf-address-card">
+                                                    <div class="cf-address-card-header">
+                                                        <span class="cf-address-card-title">Billing Address</span>
+                                                    </div>
+                                                    <div class="text-sm leading-relaxed text-slate-600">
+                                                        <div class="font-bold text-slate-900 mb-1">${c.name}</div>
+                                                        ${c.billing_address1 || ''}<br>
+                                                        ${c.billing_address2 ? c.billing_address2 + '<br>' : ''}
+                                                        ${c.billing_city} - ${c.billing_pincode}<br>
+                                                        ${billingState}, ${c.billing_country || 'India'}
+                                                    </div>
+                                                </div>
+                                                <div class="cf-address-card">
+                                                    <div class="cf-address-card-header">
+                                                        <span class="cf-address-card-title">Shipping Address</span>
+                                                    </div>
+                                                    <div class="text-sm leading-relaxed text-slate-600">
+                                                        <div class="font-bold text-slate-900 mb-1">${c.shipping_title || c.name}</div>
+                                                        ${c.shipping_address1 || ''}<br>
+                                                        ${c.shipping_address2 ? c.shipping_address2 + '<br>' : ''}
+                                                        ${c.shipping_city} - ${c.shipping_pincode}<br>
+                                                        ${shippingState}, ${c.shipping_country || 'India'}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Sidebar: Team -->
+                                    <div class="space-y-6">
+                                        <div class="cf-section accent-purple" style="height: 100%;">
+                                            <div class="cf-section-header">
+                                                <div class="cf-section-icon purple">
+                                                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+                                                </div>
+                                                <span class="cf-section-title">Team Members</span>
+                                            </div>
+                                            <div class="space-y-4 pt-2">
+                                                ${contactsList}
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
-                            <div class="grid grid-cols-3 gap-8">
-                                <div class="col-span-2 space-y-8">
-                                    <!-- Primary Contact -->
-                                    <div>
-                                        <h4 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
-                                            Primary Contact
-                                        </h4>
-                                        <div class="bg-slate-50 p-4 rounded-xl border border-slate-100 grid grid-cols-2 gap-4">
-                                            <div>
-                                                <label class="text-[10px] text-slate-400 font-bold uppercase">Name</label>
-                                                <div class="text-slate-900 font-medium">${c.contact_name || '-'}</div>
-                                            </div>
-                                            <div>
-                                                <label class="text-[10px] text-slate-400 font-bold uppercase">Role/Designation</label>
-                                                <div class="text-slate-900 font-medium">${c.contact_role || primaryContact?.role || '-'}</div>
-                                            </div>
-                                            <div>
-                                                <label class="text-[10px] text-slate-400 font-bold uppercase">Department</label>
-                                                <div class="text-slate-900 font-medium">${c.contact_dept || primaryContact?.dept || '-'}</div>
-                                            </div>
-                                            <div>
-                                                <label class="text-[10px] text-slate-400 font-bold uppercase">Mobile</label>
-                                                <div class="text-slate-900 font-medium">${c.contact_mobile || primaryContact?.mobile || '-'}</div>
-                                            </div>
-                                            <div>
-                                                <label class="text-[10px] text-slate-400 font-bold uppercase">Email</label>
-                                                <div class="text-slate-900 font-medium">${c.contact_email || primaryContact?.email || '-'}</div>
-                                            </div>
-                                            <div>
-                                                <label class="text-[10px] text-slate-400 font-bold uppercase">Phone</label>
-                                                <div class="text-slate-900 font-medium">${c.contact_phone || primaryContact?.phone || '-'}</div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <!-- Addresses -->
-                                    <div class="grid grid-cols-2 gap-6">
-                                        <div>
-                                            <h4 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
-                                                Billing Address
-                                            </h4>
-                                            <div class="p-4 rounded-xl border border-slate-100 h-full text-sm text-slate-600 leading-relaxed">
-                                                <div class="font-bold text-slate-900 mb-1">${c.name}</div>
-                                                ${c.billing_address1 || ''}<br>
-                                                ${c.billing_address2 ? c.billing_address2 + '<br>' : ''}
-                                                ${c.billing_city} - ${c.billing_pincode}<br>
-                                                ${billingState}, ${c.billing_country || 'India'}
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <h4 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"></path></svg>
-                                                Shipping Address
-                                            </h4>
-                                            <div class="p-4 rounded-xl border border-slate-100 h-full text-sm text-slate-600 leading-relaxed">
-                                                <div class="font-bold text-slate-900 mb-1">${c.shipping_title || c.name}</div>
-                                                ${c.shipping_address1 || ''}<br>
-                                                ${c.shipping_address2 ? c.shipping_address2 + '<br>' : ''}
-                                                ${c.shipping_city} - ${c.shipping_pincode}<br>
-                                                ${shippingState}, ${c.shipping_country || 'India'}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- Sidebar: Additional Contacts -->
-                                <div>
-                                    <h4 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
-                                        Team & Contacts
-                                    </h4>
-                                    <div class="space-y-3">
-                                        ${contactsList}
-                                    </div>
-                                </div>
+                            <!-- Footer -->
+                            <div class="cf-footer">
+                                <button type="button" onclick="ui.customer.delete('${c.id}')" class="cv-btn-delete">Delete Customer</button>
+                                <div style="flex:1;"></div>
+                                <button type="button" onclick="ui.modal.close()" class="cf-btn-cancel">Close</button>
+                                <button type="button" onclick="ui.modal.edit('customer', '${c.id}')" class="cv-btn-edit">Edit Details</button>
                             </div>
                         </div>
                     `;
@@ -3072,7 +3264,10 @@ try {
                                     <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Invoice #</label>
                                     <div class="flex items-center gap-2">
                                         <input type="text" id="inv-no" class="text-sm font-bold text-slate-900 bg-transparent border-none p-0 focus:ring-0 w-52" readonly>
-                                        <input type="date" id="inv-date" value="${today}" class="text-sm font-bold text-slate-500 bg-slate-50 border border-slate-200 rounded px-2 py-1 focus:ring-0" placeholder="Invoice Date">
+                                        <button type="button" onclick="ui.invoice.unlockNumber()" class="p-1 px-2 rounded bg-slate-100 text-[9px] font-bold text-slate-400 hover:bg-blue-50 hover:text-blue-600 transition-all uppercase tracking-widest" title="Manual Override">
+                                            Unlock
+                                        </button>
+                                        <input type="date" id="inv-date" value="${today}" class="text-sm font-bold text-slate-500 bg-slate-50 border border-slate-200 rounded px-2 py-1 focus:ring-0 ml-4" placeholder="Invoice Date">
                                     </div>
                                 </div>
                                 <div class="builder-header-field flex-1">
@@ -3185,6 +3380,34 @@ try {
                             </div>
                         </div>
 
+                        <!-- Section 2.8: Receipts & Deductions (For Payments) -->
+                        <div class="builder-section bg-blue-50/20 py-6 border-b-2 border-blue-100">
+                            <div class="grid grid-cols-12 gap-8">
+                                <div class="col-span-12">
+                                    <h4 class="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-4">Post-Payment Deductions (TDS / Charges)</h4>
+                                    <div class="grid grid-cols-4 gap-4">
+                                        <div>
+                                            <label class="text-[10px] font-bold text-slate-400 block mb-1">TDS Amount</label>
+                                            <input type="number" id="inv-tds" step="0.01" value="0.00" class="form-input text-sm font-bold bg-white border-slate-200 rounded-lg w-full">
+                                        </div>
+                                        <div>
+                                            <label class="text-[10px] font-bold text-slate-400 block mb-1">Bank Charges</label>
+                                            <input type="number" id="inv-bank-deduction" step="0.01" value="0.00" class="form-input text-sm font-bold bg-white border-slate-200 rounded-lg w-full">
+                                        </div>
+                                        <div>
+                                            <label class="text-[10px] font-bold text-slate-400 block mb-1">PBG Amount</label>
+                                            <input type="number" id="inv-pbg" step="0.01" value="0.00" class="form-input text-sm font-bold bg-white border-slate-200 rounded-lg w-full">
+                                        </div>
+                                        <div>
+                                            <label class="text-[10px] font-bold text-slate-400 block mb-1">Other Deductions</label>
+                                            <input type="number" id="inv-other-deduction" step="0.01" value="0.00" class="form-input text-sm font-bold bg-white border-slate-200 rounded-lg w-full">
+                                        </div>
+                                    </div>
+                                    <p class="mt-2 text-[9px] text-slate-400 italic font-medium">Note: These amounts are subtracted from the received total in the Customer Ledger.</p>
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- Section 3: Products & Services -->
                         <div class="builder-section">
                             <div class="flex items-center justify-between mb-8">
@@ -3288,9 +3511,12 @@ try {
                     </div>
                 </div>
                 `;
-                    ui.invoice.updateDocNo(); // Initial doc no
-                    ui.invoice.addItem();
-                    ui.invoice.loadDefaultTerms();
+                    // Only initialize for new invoices
+                    if (!ui.invoice.activeId) {
+                        ui.invoice.updateDocNo(); 
+                        ui.invoice.addItem();
+                        ui.invoice.loadDefaultTerms();
+                    }
                 } else if (type === 'purchase') {
                     root.innerHTML = `
                         <div class="modal-content p-8 rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-y-auto animate-slide-up bg-white">
@@ -4280,6 +4506,7 @@ try {
                 }
             },
             close: () => {
+                ui.invoice.activeId = null; // Clear invoice state
                 ui.quotation_v2.activeId = null;
                 ui.quotation_v2.activeStatus = null;
                 document.getElementById('modal-overlay').classList.remove('active');
@@ -4328,6 +4555,179 @@ try {
                             }
                         }
                     });
+                }
+            }
+        },
+        spotlight: {
+            isOpen: false,
+            selectedIndex: -1,
+            results: [],
+            
+            init: () => {
+                const div = document.createElement('div');
+                div.id = 'spotlight-overlay';
+                div.className = 'spotlight-overlay';
+                div.innerHTML = `
+                    <div class="spotlight-modal">
+                        <div class="spotlight-search-header">
+                            <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                            <input type="text" id="spotlight-input" class="spotlight-input" placeholder="Search customers, invoices, quotes..." autocomplete="off">
+                        </div>
+                        <div id="spotlight-results" class="spotlight-results">
+                            <div class="p-8 text-center text-slate-400 text-sm">Type something to search... (Ctrl+K)</div>
+                        </div>
+                        <div class="spotlight-footer">
+                            <span><kbd class="spotlight-kbd">↑↓</kbd> to navigate</span>
+                            <span><kbd class="spotlight-kbd">Enter</kbd> to open</span>
+                            <span><kbd class="spotlight-kbd">Esc</kbd> to close</span>
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(div);
+
+                const input = document.getElementById('spotlight-input');
+                if (input) {
+                    input.oninput = (e) => ui.spotlight.search(e.target.value);
+                    input.onkeydown = (e) => ui.spotlight.handleKey(e);
+                }
+                div.onclick = (e) => { if(e.target === div) ui.spotlight.close(); };
+
+                window.addEventListener('keydown', (e) => {
+                    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+                        e.preventDefault();
+                        ui.spotlight.open();
+                    }
+                });
+            },
+
+            open: () => {
+                const overlay = document.getElementById('spotlight-overlay');
+                if (!overlay) return;
+                overlay.classList.add('active');
+                const input = document.getElementById('spotlight-input');
+                if (input) {
+                    input.value = '';
+                    input.focus();
+                }
+                ui.spotlight.search('');
+            },
+
+            close: () => {
+                const overlay = document.getElementById('spotlight-overlay');
+                if (overlay) overlay.classList.remove('active');
+            },
+
+            search: (query) => {
+                const resultsContainer = document.getElementById('spotlight-results');
+                if (!resultsContainer) return;
+                if (!query) {
+                    resultsContainer.innerHTML = '<div class="p-8 text-center text-slate-400 text-sm">Search across Customers, Invoices, Quotations...</div>';
+                    ui.spotlight.results = [];
+                    return;
+                }
+
+                const q = query.toLowerCase();
+                const results = {
+                    customers: state.customers.filter(c => c.name.toLowerCase().includes(q) || (c.company && c.company.toLowerCase().includes(q)) || (c.gstin && c.gstin.toLowerCase().includes(q))).slice(0, 5),
+                    invoices: state.invoices.filter(i => i.invoice_no.toLowerCase().includes(q) || state.customers.find(c => c.id === i.customer_id)?.name.toLowerCase().includes(q)).slice(0, 5),
+                    quotations: state.quotations.filter(qtn => qtn.quotation_no.toLowerCase().includes(q) || qtn.subject?.toLowerCase().includes(q)).slice(0, 5),
+                    proforma: state.proforma.filter(p => p.doc_no?.toLowerCase().includes(q) || state.customers.find(c => c.id === p.customer_id)?.name.toLowerCase().includes(q)).slice(0, 5)
+                };
+
+                let html = '';
+                ui.spotlight.results = [];
+
+                const addResult = (type, item, title, subtitle, icon) => {
+                    const index = ui.spotlight.results.length;
+                    ui.spotlight.results.push({ type, id: item.id, item });
+                    return `
+                        <div class="spotlight-item" data-index="${index}" onclick="ui.spotlight.navigate('${type}', '${item.id}')">
+                            <div class="spotlight-item-icon">${icon}</div>
+                            <div class="spotlight-item-info">
+                                <div class="spotlight-item-title">${title}</div>
+                                <div class="spotlight-item-subtitle">${subtitle}</div>
+                            </div>
+                        </div>
+                    `;
+                };
+
+                if (results.customers.length > 0) {
+                    html += '<div class="spotlight-category">Customers</div>';
+                    results.customers.forEach(c => {
+                        html += addResult('customer', c, c.name, `GSTIN: ${c.gstin || 'N/A'}`, '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>');
+                    });
+                }
+
+                if (results.invoices.length > 0) {
+                    html += '<div class="spotlight-category">Invoices</div>';
+                    results.invoices.forEach(i => {
+                        const c = state.customers.find(x => x.id === i.customer_id);
+                        html += addResult('invoice', i, i.invoice_no, c ? c.name : 'Unknown Customer', '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>');
+                    });
+                }
+
+                if (results.quotations.length > 0) {
+                    html += '<div class="spotlight-category">Quotations</div>';
+                    results.quotations.forEach(qtn => {
+                        const c = state.customers.find(x => x.id === qtn.customer_id);
+                        html += addResult('quotation', qtn, qtn.quotation_no, qtn.subject || (c ? c.name : ''), '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/></svg>');
+                    });
+                }
+
+                if (results.proforma.length > 0) {
+                    html += '<div class="spotlight-category">Proforma Invoices</div>';
+                    results.proforma.forEach(p => {
+                        const c = state.customers.find(x => x.id === p.customer_id);
+                        html += addResult('proforma', p, p.doc_no || 'PFI', c ? c.name : '', '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>');
+                    });
+                }
+
+                if (!html) html = `<div class="p-8 text-center text-slate-400 text-sm">No results found for "${query}"</div>`;
+                resultsContainer.innerHTML = html;
+                ui.spotlight.selectedIndex = -1;
+            },
+
+            handleKey: (e) => {
+                if (e.key === 'Escape') ui.spotlight.close();
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    ui.spotlight.selectedIndex = Math.min(ui.spotlight.selectedIndex + 1, ui.spotlight.results.length - 1);
+                    ui.spotlight.updateActive();
+                }
+                if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    ui.spotlight.selectedIndex = Math.max(ui.spotlight.selectedIndex - 1, 0);
+                    ui.spotlight.updateActive();
+                }
+                if (e.key === 'Enter') {
+                    const res = ui.spotlight.results[ui.spotlight.selectedIndex];
+                    if (res) ui.spotlight.navigate(res.type, res.id);
+                }
+            },
+
+            updateActive: () => {
+                const items = document.querySelectorAll('.spotlight-item');
+                items.forEach((it, i) => {
+                    if (i === ui.spotlight.selectedIndex) {
+                        it.classList.add('active');
+                        it.scrollIntoView({ block: 'nearest' });
+                    } else {
+                        it.classList.remove('active');
+                    }
+                });
+            },
+
+            navigate: (type, id) => {
+                ui.spotlight.close();
+                if (type === 'customer') {
+                    const c = state.customers.find(x => x.id === id);
+                    if (c) ui.modal.open('customer-view', c);
+                } else if (type === 'invoice') {
+                    api.docs.generatePDF('invoices', id);
+                } else if (type === 'quotation') {
+                    api.docs.generatePDF('quotations', id);
+                } else if (type === 'proforma') {
+                    api.docs.generatePDF('proforma', id);
                 }
             }
         },
@@ -5406,6 +5806,17 @@ try {
                 document.getElementById('inv-footer-total').textContent = `${symbol}${grandTotal.toLocaleString(loc, { minimumFractionDigits: 2 })}`;
             },
 
+            unlockNumber: () => {
+                const el = document.getElementById('inv-no');
+                if (el) {
+                    el.readOnly = false;
+                    el.classList.remove('bg-transparent');
+                    el.classList.add('bg-blue-50', 'border-blue-200', 'px-2', 'py-1', 'rounded');
+                    el.focus();
+                    api.notifications.show('Invoice number unlocked for manual editing.', 'info');
+                }
+            },
+
             edit: async (id) => {
                 try {
                     const { data: inv, error } = await supabaseClient
@@ -5439,6 +5850,10 @@ try {
                         if (inv.purchase_date) setVal('inv-purchase-date', inv.purchase_date);
                         setVal('inv-notes', inv.notes || '');
                         setVal('inv-bank-charges', inv.bank_charges || 0);
+                        setVal('inv-tds', inv.tds_amount || 0);
+                        setVal('inv-bank-deduction', inv.bank_charges_deduction || 0);
+                        setVal('inv-pbg', inv.pbg_amount || 0);
+                        setVal('inv-other-deduction', inv.other_deductions || 0);
 
                         // Custom Fields
                         if (inv.custom_fields && Array.isArray(inv.custom_fields)) {
@@ -6900,7 +7315,7 @@ try {
                 // Products module removed to save Supabase storage/memory
                 state.products = []; 
 
-                const { data: customers } = await supabaseClient.from('customers').select('*');
+                const { data: customers } = await supabaseClient.from('customers').select('*').order('name', { ascending: true });
                 state.customers = customers || [];
 
                 // Fetch Settings (Single Row)
@@ -7080,6 +7495,10 @@ try {
                         total_amount: parseFloat(document.getElementById('inv-sum-total').textContent.replace(/[^0-9.-]/g, '')),
                         user_id: state.user.id,
                         bank_charges: parseFloat(document.getElementById('inv-bank-charges')?.value) || 0,
+                        tds_amount: parseFloat(document.getElementById('inv-tds')?.value) || 0,
+                        bank_charges_deduction: parseFloat(document.getElementById('inv-bank-deduction')?.value) || 0,
+                        pbg_amount: parseFloat(document.getElementById('inv-pbg')?.value) || 0,
+                        other_deductions: parseFloat(document.getElementById('inv-other-deduction')?.value) || 0,
                         status: isDraft ? 'Draft' : 'Pending',
                         metadata: {
                             converted_from_pfi: ui.invoice.sourcePfiId || null,
@@ -8213,7 +8632,7 @@ try {
                     const titleMap = {
                         quotations: 'QUOTATION', proforma: 'PRO FORMA INVOICE', challans: 'DELIVERY CHALLAN',
                         credit_notes: 'CREDIT NOTE', debit_notes: 'DEBIT NOTE', purchase_orders: 'PURCHASE ORDER',
-                        invoices: 'TAX INVOICE'
+                        invoices: 'TAX INVOICE', ledger: 'STATEMENT OF ACCOUNT'
                     };
                     return titleMap[type] || 'DOCUMENT';
                 },
@@ -8812,6 +9231,170 @@ try {
                     alert('PDF Generation failed: ' + err.message);
                 }
             },
+
+            generateLedger: async (customerId) => {
+                try {
+                    const customer = state.customers.find(c => c.id === customerId);
+                    if (!customer) throw new Error('Customer not found');
+
+                    const invoices = state.invoices
+                        .filter(i => i.customer_id === customerId)
+                        .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+                    const settings = state.settings || {};
+                    const { jsPDF } = window.jspdf;
+                    const pdf = new jsPDF('p', 'mm', 'a4');
+                    const pageWidth = pdf.internal.pageSize.width;
+                    const pageHeight = pdf.internal.pageSize.height;
+                    const margin = 10;
+
+                    const model = api.docs.pdfModel;
+                    
+                    // Header
+                    const dummyDoc = { 
+                        invoice_no: '-', 
+                        date: new Date().toISOString() 
+                    };
+                    const { dynamicHeaderHeight } = model.renderHeader(pdf, dummyDoc, 'ledger', settings, margin, pageWidth);
+
+                    // Customer info
+                    const headerBottomY = margin + 10 + dynamicHeaderHeight;
+                    pdf.setFontSize(10);
+                    pdf.setFont('Poppins', 'bold');
+                    pdf.setTextColor(0);
+                    pdf.text('Statement For:', margin, headerBottomY + 10);
+                    pdf.setFont('Poppins', 'normal');
+                    pdf.text(customer.name, margin, headerBottomY + 15);
+                    
+                    const addressLines = [
+                        customer.billing_address || customer.address || '',
+                        customer.city || '',
+                        customer.gstin ? `GSTIN: ${customer.gstin}` : ''
+                    ].filter(l => l);
+                    
+                    let addrY = headerBottomY + 20;
+                    addressLines.forEach(line => {
+                        pdf.text(line, margin, addrY);
+                        addrY += 5;
+                    });
+
+                    // Ledger Table
+                    const head = [['Date', 'Particulars', 'Debit (Inv)', 'Credit (Recv)', 'Balance']];
+                    let runningBalance = 0;
+                    const body = invoices.map(inv => {
+                        const debit = inv.total_amount || 0;
+                        const credit = inv.status === 'Paid' ? debit : 0;
+                        runningBalance += (debit - credit);
+                        
+                        return [
+                            new Date(inv.date).toLocaleDateString('en-IN'),
+                            `Invoice: ${inv.invoice_no}`,
+                            debit.toLocaleString('en-IN', { minimumFractionDigits: 2 }),
+                            credit.toLocaleString('en-IN', { minimumFractionDigits: 2 }),
+                            runningBalance.toLocaleString('en-IN', { minimumFractionDigits: 2 })
+                        ];
+                    });
+
+                    pdf.autoTable({
+                        startY: addrY + 5,
+                        head: head,
+                        body: body,
+                        theme: 'striped',
+                        headStyles: { fillColor: [59, 130, 246], textColor: [255, 255, 255], font: 'Poppins', fontStyle: 'bold' },
+                        styles: { font: 'Poppins', fontSize: 9 },
+                        columnStyles: {
+                            2: { halign: 'right' },
+                            3: { halign: 'right' },
+                            4: { halign: 'right', fontStyle: 'bold' }
+                        },
+                        margin: { left: margin, right: margin }
+                    });
+
+                    // Deductions Summary Section
+                    const invoicesWithDeductions = invoices.filter(inv => 
+                        (inv.tds_amount > 0 || inv.bank_charges_deduction > 0 || inv.pbg_amount > 0 || inv.other_deductions > 0)
+                    );
+
+                    let nextY = pdf.lastAutoTable.finalY + 10;
+
+                    if (invoicesWithDeductions.length > 0) {
+                        // Check for page overflow
+                        if (nextY > pageHeight - 40) { pdf.addPage(); nextY = margin; }
+
+                        pdf.setFontSize(10);
+                        pdf.setFont('Poppins', 'bold');
+                        pdf.setTextColor(51, 65, 85);
+                        pdf.text('Deductions Summary:', margin, nextY);
+                        
+                        const dedHead = [['Date', 'Invoice #', 'TDS', 'Bank Chg', 'PBG', 'Other', 'Total']];
+                        const dedBody = invoicesWithDeductions.map(inv => {
+                            const total = (inv.tds_amount || 0) + (inv.bank_charges_deduction || 0) + (inv.pbg_amount || 0) + (inv.other_deductions || 0);
+                            return [
+                                new Date(inv.date).toLocaleDateString('en-IN'),
+                                inv.invoice_no,
+                                (inv.tds_amount || 0).toLocaleString('en-IN'),
+                                (inv.bank_charges_deduction || 0).toLocaleString('en-IN'),
+                                (inv.pbg_amount || 0).toLocaleString('en-IN'),
+                                (inv.other_deductions || 0).toLocaleString('en-IN'),
+                                total.toLocaleString('en-IN', { minimumFractionDigits: 2 })
+                            ];
+                        });
+
+                        pdf.autoTable({
+                            startY: nextY + 5,
+                            head: dedHead,
+                            body: dedBody,
+                            theme: 'grid',
+                            headStyles: { fillColor: [100, 116, 139], textColor: [255, 255, 255], font: 'Poppins', fontStyle: 'bold' },
+                            styles: { font: 'Poppins', fontSize: 8 },
+                            columnStyles: {
+                                2: { halign: 'right' },
+                                3: { halign: 'right' },
+                                4: { halign: 'right' },
+                                5: { halign: 'right' },
+                                6: { halign: 'right', fontStyle: 'bold' }
+                            },
+                            margin: { left: margin, right: margin }
+                        });
+                        nextY = pdf.lastAutoTable.finalY + 10;
+                    }
+
+                    // Summary
+                    if (nextY > pageHeight - 20) { pdf.addPage(); nextY = margin; }
+                    pdf.setFontSize(11);
+                    pdf.setFont('Poppins', 'bold');
+                    pdf.setTextColor(0);
+                    const totalText = `Total Outstanding: Rs. ${runningBalance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+                    const textWidth = pdf.getTextWidth(totalText);
+                    pdf.text(totalText, pageWidth - margin - textWidth, nextY);
+
+                    // Preview
+                    const pdfBlob = pdf.output('blob');
+                    const pdfUrl = URL.createObjectURL(pdfBlob);
+                    const filename = `Statement_${customer.name.replace(/\s+/g, '_')}.pdf`;
+
+                    const modal = document.createElement('div');
+                    modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 9999; display: flex; align-items: center; justify-content: center;';
+                    modal.innerHTML = `
+                        <div style="width: 90%; height: 90%; background: white; border-radius: 8px; overflow: hidden; display: flex; flex-direction: column;">
+                            <div style="padding: 16px; background: #f8f9fa; border-bottom: 1px solid #dee2e6; display: flex; justify-content: space-between; align-items: center;">
+                                <h3 style="margin: 0; font-family: Poppins, sans-serif;">Statement of Account - ${customer.name}</h3>
+                                <div style="display: flex; gap: 12px; align-items: center;">
+                                    <a href="${pdfUrl}" download="${filename}" style="padding: 8px 16px; background: #3b82f6; color: white; text-decoration: none; border-radius: 6px; font-size: 14px; font-weight: 600; font-family: Poppins, sans-serif;">Download PDF</a>
+                                    <button class="close-pdf-modal" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #6c757d;">&times;</button>
+                                </div>
+                            </div>
+                            <iframe src="${pdfUrl}" style="flex: 1; border: none; width: 100%;"></iframe>
+                        </div>
+                    `;
+                    document.body.appendChild(modal);
+                    modal.querySelector('.close-pdf-modal').onclick = () => { modal.remove(); URL.revokeObjectURL(pdfUrl); };
+
+                } catch (err) {
+                    console.error('Ledger Error:', err);
+                    alert('Failed to generate ledger: ' + err.message);
+                }
+            },
         }
     };
 
@@ -8828,3 +9411,4 @@ try {
     console.error('CRITICAL STARTUP ERROR:', e);
     alert('CRITICAL STARTUP ERROR: ' + e.message);
 }
+
