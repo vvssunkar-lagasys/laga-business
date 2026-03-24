@@ -621,9 +621,10 @@ try {
     `,
         Invoices: (items, filter = 'All') => {
             const searchQuery = (ui.sales.searchQuery || '').toLowerCase();
+            const symbolMap = { 'INR': '₹', 'USD': '$', 'EUR': '€' };
             const itemsFY = items.filter(i => isWithinFY(i.date, state.fy));
 
-            // Aggregation for all currencies
+            // Aggregation and counts for all statuses
             const totals = itemsFY.reduce((acc, inv) => {
                 const cur = inv.currency || 'INR';
                 const amt = inv.total_amount || 0;
@@ -634,11 +635,16 @@ try {
                 if (status === 'Paid') acc[cur].paid += amt;
                 else acc[cur].pending += amt;
 
+                // Status counts
+                const sKey = status.toLowerCase();
+                acc.counts[sKey] = (acc.counts[sKey] || 0) + 1;
+
                 return acc;
             }, {
                 'INR': { total: 0, paid: 0, pending: 0 },
                 'USD': { total: 0, paid: 0, pending: 0 },
-                'EUR': { total: 0, paid: 0, pending: 0 }
+                'EUR': { total: 0, paid: 0, pending: 0 },
+                counts: { all: itemsFY.length, pending: 0, paid: 0, cancelled: 0, draft: 0, closed: 0 }
             });
 
             // Filter by Status Tab
@@ -672,11 +678,24 @@ try {
                     </div>
 
                     <div class="status-tabs">
-                        <div class="tab-item ${filter === 'All' ? 'active' : ''}" onclick="ui.sales.setFilter('All')">All <span class="tab-count">${itemsFY.length}</span></div>
-                        <div class="tab-item ${filter === 'Pending' ? 'active' : ''}" onclick="ui.sales.setFilter('Pending')">Pending</div>
-                        <div class="tab-item ${filter === 'Paid' ? 'active' : ''}" onclick="ui.sales.setFilter('Paid')">Paid</div>
-                        <div class="tab-item ${filter === 'Cancelled' ? 'active' : ''}" onclick="ui.sales.setFilter('Cancelled')">Cancelled</div>
-                        <div class="tab-item ${filter === 'Drafts' ? 'active' : ''}" onclick="ui.sales.setFilter('Drafts')">Drafts</div>
+                        <div class="tab-item ${filter === 'All' ? 'active' : ''}" onclick="ui.sales.setFilter('All')">
+                            All <span class="tab-count !bg-slate-100 !text-slate-600">${totals.counts.all}</span>
+                        </div>
+                        <div class="tab-item ${filter === 'Pending' ? 'active' : ''}" onclick="ui.sales.setFilter('Pending')">
+                            Pending <span class="tab-count !bg-amber-100 !text-amber-700">${totals.counts.pending}</span>
+                        </div>
+                        <div class="tab-item ${filter === 'Paid' ? 'active' : ''}" onclick="ui.sales.setFilter('Paid')">
+                            Paid <span class="tab-count !bg-emerald-100 !text-emerald-700">${totals.counts.paid}</span>
+                        </div>
+                        <div class="tab-item ${filter === 'Closed' ? 'active' : ''}" onclick="ui.sales.setFilter('Closed')">
+                            Closed <span class="tab-count !bg-indigo-100 !text-indigo-700">${totals.counts.closed}</span>
+                        </div>
+                        <div class="tab-item ${filter === 'Cancelled' ? 'active' : ''}" onclick="ui.sales.setFilter('Cancelled')">
+                            Cancelled <span class="tab-count !bg-rose-100 !text-rose-700">${totals.counts.cancelled}</span>
+                        </div>
+                        <div class="tab-item ${filter === 'Drafts' ? 'active' : ''}" onclick="ui.sales.setFilter('Drafts')">
+                            Drafts <span class="tab-count !bg-slate-200 !text-slate-700">${totals.counts.draft}</span>
+                        </div>
                     </div>
 
                     <div class="toolbar gap-6">
@@ -685,38 +704,47 @@ try {
                             <input type="text" class="form-input search-input" placeholder="Search invoices, customers, city..." value="${ui.sales.searchQuery || ''}" oninput="ui.sales.search(this.value)">
                         </div>
 
-                        <!-- Currency Stats -->
-                        <div class="flex items-center gap-4 bg-white border border-slate-100 px-4 py-1.5 rounded-xl shadow-sm">
-                            <!-- INR -->
-                            <div class="flex flex-col min-w-[80px]">
-                                <div class="flex items-center gap-1 mb-0.5">
-                                    <div class="w-1 h-2.5 bg-slate-900 rounded-full"></div>
-                                    <span class="text-[8px] uppercase tracking-wider font-black text-slate-400">INR</span>
-                                </div>
-                                <div class="flex items-baseline gap-1.5">
-                                    <span class="text-[11px] font-black text-slate-900">₹${totals.INR.total.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
-                                    <div class="flex gap-1.5">
-                                        <span class="text-[8px] font-bold text-emerald-600">P: ₹${totals.INR.paid.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
-                                        <span class="text-[8px] font-bold text-red-500">U: ₹${totals.INR.pending.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
+                        <!-- Premium Currency Stats -->
+                        <div class="flex items-center gap-5 px-5 py-2.5 bg-white/60 backdrop-blur-md border border-slate-100 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+                            ${Object.entries(totals).filter(([k,v]) => ['INR','USD','EUR'].includes(k) && v.total > 0).map(([code, data], idx, arr) => `
+                                <div class="flex items-center gap-3">
+                                    <div class="w-10 h-10 rounded-xl flex items-center justify-center text-lg font-bold ${code === 'INR' ? 'bg-slate-900 text-white' : code === 'USD' ? 'bg-blue-600 text-white' : 'bg-indigo-600 text-white'}">
+                                        ${code === 'INR' ? '₹' : code === 'USD' ? '$' : '€'}
+                                    </div>
+                                    <div class="flex flex-col">
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-[10px] font-black tracking-widest text-slate-400 uppercase">${code} TOTAL</span>
+                                        </div>
+                                        <div class="flex items-baseline gap-3">
+                                            <span class="text-base font-black text-slate-900 tabular-nums">
+                                                ${code === 'INR' ? '₹' + data.total.toLocaleString('en-IN', { maximumFractionDigits: 0 }) : symbolMap[code] + data.total.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                                            </span>
+                                            <div class="flex items-center gap-2">
+                                                <div class="flex items-center gap-1 group/paid">
+                                                    <div class="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+                                                    <span class="text-[10px] font-bold text-emerald-600">
+                                                        <span class="opacity-50 font-medium">PAID</span> ${code === 'INR' ? '₹' + data.paid.toLocaleString('en-IN', { maximumFractionDigits: 0 }) : symbolMap[code] + data.paid.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                                                    </span>
+                                                </div>
+                                                <div class="flex items-center gap-1 group/due">
+                                                    <div class="w-1.5 h-1.5 rounded-full bg-rose-500"></div>
+                                                    <span class="text-[10px] font-bold text-rose-600">
+                                                        <span class="opacity-50 font-medium tracking-tight">DUE</span> ${code === 'INR' ? '₹' + data.pending.toLocaleString('en-IN', { maximumFractionDigits: 0 }) : symbolMap[code] + data.pending.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                            <div class="w-px h-6 bg-slate-100"></div>
-                            <!-- USD -->
-                            <div class="flex flex-col min-w-[80px]">
-                                <div class="flex items-center gap-1 mb-0.5">
-                                    <div class="w-1 h-2.5 bg-blue-600 rounded-full"></div>
-                                    <span class="text-[8px] uppercase tracking-wider font-black text-slate-400">USD</span>
-                                </div>
-                                <div class="flex items-baseline gap-1.5">
-                                    <span class="text-[11px] font-black text-blue-600">$${totals.USD.total.toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
-                                    <div class="flex gap-1.5">
-                                        <span class="text-[8px] font-bold text-emerald-600">P: $${totals.USD.paid.toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
-                                        <span class="text-[8px] font-bold text-red-500">U: $${totals.USD.pending.toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
-                                    </div>
-                                </div>
-                            </div>
+                                ${idx < arr.length - 1 ? '<div class="w-px h-8 bg-slate-100 mx-1"></div>' : ''}
+                            `).join('')}
                         </div>
+
+                        <!-- Export to Excel -->
+                        <button onclick="api.invoices.exportExcel()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-700 text-[11px] font-bold hover:bg-emerald-600 hover:text-white transition-all" title="Export current view to Excel">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                            Export
+                        </button>
                     </div>
 
                     <div class="glass rounded-2xl overflow-hidden shadow-sm">
@@ -724,6 +752,7 @@ try {
                             <thead>
                                 <tr>
                                     <th>Invoice #</th>
+                                    <th>Date</th>
                                     <th>Customer</th>
                                     <th>Type</th>
                                     <th class="text-right">Amount</th>
@@ -736,15 +765,23 @@ try {
                 const currency = inv.currency || 'INR';
                 const symbol = { 'INR': '₹', 'USD': '$', 'EUR': '€' }[currency];
                 const loc = currency === 'USD' ? 'en-US' : 'en-IN';
+                const isOverdue = inv.due_date && new Date(inv.due_date) < new Date() && !['Paid', 'Cancelled', 'Draft', 'Closed'].includes(inv.status);
                 return `
-                                    <tr class="hover:bg-slate-50 transition-colors">
+                                    <tr class="hover:bg-slate-50 transition-colors ${isOverdue ? 'bg-rose-50/20 border-l-4 border-l-rose-500' : ''}">
                                         <td class="font-bold text-slate-900">${inv.invoice_no}</td>
                                         <td>
-                                            <div class="font-bold text-slate-900">${inv.customers?.name || 'Walk-in'}</div>
-                                            <div class="text-[10px] text-slate-400 font-medium">${inv.customers?.city || ''}</div>
+                                            <div class="font-bold text-slate-900 text-xs">${formatDate(inv.date)}</div>
+                                            <div class="text-[10px] font-bold ${isOverdue ? 'text-rose-600 animate-pulse' : 'text-slate-400'}">${inv.due_date ? 'Due: ' + formatDate(inv.due_date) : ''}</div>
                                         </td>
                                         <td>
-                                            <span class="px-2 py-0.5 rounded text-[10px] font-bold ${inv.type === 'LUT / Export' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}">
+                                            <div class="font-bold text-slate-900">${inv.customers?.name || 'Walk-in'}</div>
+                                            <div class="flex items-center gap-2 mt-0.5">
+                                                <span class="text-[10px] text-slate-400 font-medium">${inv.customers?.city || ''}</span>
+                                                ${inv.purchase_no ? `<span class="bg-slate-50 text-slate-500 px-1.5 py-0.5 rounded border border-slate-100 text-[9px] font-bold tracking-tight">PO: ${inv.purchase_no}</span>` : ''}
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="px-2 py-0.5 rounded text-[10px] font-bold ${inv.type === 'LUT / Export' ? 'bg-orange-50 text-orange-700 border border-orange-100' : 'bg-blue-50 text-blue-700 border border-blue-100'}">
                                                 ${inv.type || 'Regular'}
                                             </span>
                                         </td>
@@ -755,9 +792,24 @@ try {
                                             </div>
                                         </td>
                                         <td>
-                                            <span class="status-badge ${inv.status === 'Paid' ? 'bg-emerald-100 text-emerald-700' : 'bg-orange-100 text-orange-700'}">
-                                                ${inv.status || 'Pending'}
-                                            </span>
+                                            <div class="flex items-center gap-2">
+                                                <span class="px-3 py-1 rounded-full text-[10px] font-bold border ${(() => {
+                            const s = (inv.status || 'Pending').toLowerCase();
+                            if (s === 'paid') return 'bg-emerald-50 text-emerald-700 border-emerald-100';
+                            if (s === 'cancelled') return 'bg-rose-50 text-rose-700 border-rose-100';
+                            if (s === 'draft') return 'bg-slate-50 text-slate-600 border-slate-200';
+                            if (s === 'closed') return 'bg-indigo-50 text-indigo-700 border-indigo-100';
+                            return 'bg-amber-50 text-amber-700 border-amber-100'; // Pending
+                        })()}">
+                                                    ${inv.status || 'Pending'}
+                                                </span>
+                                                ${isOverdue ? `
+                                                    <span class="flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-600 text-white text-[9px] font-black tracking-tighter uppercase shadow-sm animate-bounce-subtle">
+                                                        <svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/></svg>
+                                                        Overdue
+                                                    </span>
+                                                ` : ''}
+                                            </div>
                                         </td>
                                         <td class="text-right p-4">
                                             <div class="flex items-center justify-end gap-2">
@@ -788,7 +840,7 @@ try {
                                 `;
             }).join('') : `
                                     <tr>
-                                        <td colspan="6">
+                                        <td colspan="7">
                                             <div class="empty-state">
                                                 <div class="empty-state-icon">Oops 😳 !</div>
                                                 <h3>No invoices found.</h3>
@@ -1767,6 +1819,84 @@ try {
                 </div>
     `;
         },
+        CreditNotes: (items) => {
+            return `
+                <div class="space-y-6 animate-fade-in pb-12">
+                    <!-- Dashboard Section -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div class="glass p-6 rounded-3xl border border-rose-100 shadow-sm transition-all hover:shadow-md">
+                            <p class="text-[10px] font-black text-rose-600 uppercase tracking-widest mb-1">Total Issued</p>
+                            <h4 class="text-3xl font-black text-slate-900">₹${items.reduce((s, doc) => s + (doc.total_amount || 0), 0).toLocaleString()}</h4>
+                            <div class="mt-2 text-[10px] font-bold text-slate-400 bg-rose-50 px-2 py-0.5 rounded-full inline-block">${items.length} Records</div>
+                        </div>
+                        <div class="glass p-6 rounded-3xl border border-slate-100 shadow-sm bg-white/50">
+                            <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Last Transaction</p>
+                            <h4 class="text-xl font-bold text-slate-900">${items.length ? (items[0].doc_no || 'N/A') : 'No Data'}</h4>
+                            <p class="text-[10px] text-slate-400 mt-1 font-medium">${items.length ? formatDate(items[0].date) : '-'}</p>
+                        </div>
+                        <div class="glass p-6 rounded-3xl border border-blue-100 shadow-sm bg-blue-50/20">
+                            <p class="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-1">Premium Feature</p>
+                            <h4 class="text-lg font-bold text-slate-900">Enhanced Tracking</h4>
+                            <p class="text-[10px] text-slate-400 mt-1">Linking reasons and invoices.</p>
+                        </div>
+                    </div>
+
+                    <!-- List View -->
+                    <div class="glass rounded-3xl overflow-hidden shadow-sm border border-slate-100 bg-white">
+                        <div class="p-6 border-b border-slate-50 flex justify-between items-center bg-slate-50/50">
+                            <div class="flex items-center gap-3">
+                                <div class="w-2 h-6 bg-rose-500 rounded-full"></div>
+                                <h4 class="font-black text-slate-900 uppercase tracking-tight">Credit Notes Registry</h4>
+                            </div>
+                            <button onclick="ui.modal.open('credit_notes')" class="bg-rose-600 text-white px-6 py-2.5 rounded-xl text-sm font-black hover:bg-rose-700 transition-all shadow-lg active:scale-95">+ Issue Credit Note</button>
+                        </div>
+                        
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left">
+                                <thead class="bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                    <tr>
+                                        <th class="p-5">Note # & Date</th>
+                                        <th class="p-5">Customer Details</th>
+                                        <th class="p-5">Reason & Reference</th>
+                                        <th class="p-5 text-right">Total Value</th>
+                                        <th class="p-5 text-center">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100">
+                                    ${items.length ? items.map(doc => `
+                                        <tr class="hover:bg-slate-50/50 transition-all group">
+                                            <td class="p-5">
+                                                <p class="font-black text-rose-600 font-mono">${doc.doc_no}</p>
+                                                <p class="text-[10px] text-slate-400 font-bold">${formatDate(doc.date)}</p>
+                                            </td>
+                                            <td class="p-5">
+                                                <p class="font-bold text-slate-900">${doc.customers?.name || 'Walk-in Customer'}</p>
+                                                <p class="text-[10px] text-slate-400 font-medium">${doc.customers?.billing_city || '-'}</p>
+                                            </td>
+                                            <td class="p-5">
+                                                <span class="inline-flex px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[9px] font-black uppercase tracking-wider mb-1">${doc.metadata?.reason || 'General Adjustment'}</span>
+                                                ${doc.metadata?.ref_invoice ? `<p class="text-[10px] text-slate-400 font-bold">Ref: ${doc.metadata.ref_invoice}</p>` : ''}
+                                            </td>
+                                            <td class="p-5 text-right font-black text-slate-900">₹${doc.total_amount.toLocaleString()}</td>
+                                            <td class="p-5 text-center">
+                                                <div class="flex justify-center gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                                                    <button onclick="api.docs.generatePDF('credit_notes', '${doc.id}')" class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Download PDF">
+                                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                                    </button>
+                                                    <button onclick="api.docs.delete('credit_notes', '${doc.id}')" class="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors" title="Delete record">
+                                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    `).join('') : `<tr><td colspan="5" class="p-20 text-center text-slate-400 italic font-medium">No Credit Notes found. Start by issuing your first credit note!</td></tr>`}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            `;
+        },
         Settings: (data) => `
         <div class="max-w-4xl mx-auto animate-slide-up pb-12">
             <div class="glass p-8 rounded-3xl shadow-sm border border-slate-100">
@@ -2357,7 +2487,7 @@ try {
                     el.viewContainer.innerHTML = Templates.Invoices(state.invoices, ui.sales.filter);
                     break;
                 case 'credit_notes':
-                    el.viewContainer.innerHTML = Templates.DocList('credit_notes', state.credit_notes);
+                    el.viewContainer.innerHTML = Templates.CreditNotes(state.credit_notes);
                     break;
                 case 'purchase_orders':
                     el.viewContainer.innerHTML = Templates.DocList('purchase_orders', state.purchase_orders);
@@ -4204,6 +4334,25 @@ try {
                                     <input type="text" id="doc-no" class="form-input font-mono font-bold" value="${config.prefix}-${Date.now().toString().slice(-6)}">
                                 </div>
                             </div>
+
+                            ${type === 'credit_notes' ? `
+                                <div class="grid grid-cols-2 gap-8 mb-8">
+                                    <div class="glass p-6 rounded-2xl bg-slate-50/50 border border-rose-100">
+                                        <label class="text-[10px] font-black text-rose-600 uppercase tracking-widest block mb-2">Reason for Credit</label>
+                                        <select id="doc-reason" class="form-input font-bold text-slate-700 border-rose-50 focus:ring-rose-500/20">
+                                            <option value="Sales Return">Sales Return</option>
+                                            <option value="Post-Sales Discount">Post-Sales Discount</option>
+                                            <option value="Deficiency in Service">Deficiency in Service</option>
+                                            <option value="Correction in Invoice">Correction in Invoice</option>
+                                            <option value="Other">Other</option>
+                                        </select>
+                                    </div>
+                                    <div class="glass p-6 rounded-2xl bg-slate-50/50 border border-rose-100">
+                                        <label class="text-[10px] font-black text-rose-600 uppercase tracking-widest block mb-2">Reference Invoice #</label>
+                                        <input type="text" id="doc-ref-invoice" class="form-input font-mono font-bold text-slate-700 border-rose-50 focus:ring-rose-500/20" placeholder="e.g. INV-2324-001">
+                                    </div>
+                                </div>
+                            ` : ''}
 
                             <div class="mb-4">
                                 <div class="line-item-row bg-slate-50 text-[10px] uppercase font-bold text-slate-400 px-4 rounded-t-xl border-b-0">
@@ -7605,6 +7754,71 @@ try {
                     console.error('Toggle Payment Error:', err);
                     api.notifications.show('Failed to update status: ' + err.message, 'error');
                 }
+            },
+            exportExcel: () => {
+                try {
+                    // Replicate the same filter pipeline used by Templates.Invoices
+                    const searchQuery = (ui.sales.searchQuery || '').toLowerCase();
+                    const filter = ui.sales.filter || 'All';
+                    const itemsFY = state.invoices.filter(i => isWithinFY(i.date, state.fy));
+
+                    let filtered = filter === 'All' ? itemsFY : itemsFY.filter(i =>
+                        i.status === filter || (filter === 'Drafts' && i.status === 'Draft')
+                    );
+
+                    if (searchQuery) {
+                        filtered = filtered.filter(i =>
+                            (i.invoice_no || '').toLowerCase().includes(searchQuery) ||
+                            (i.customers?.name || '').toLowerCase().includes(searchQuery) ||
+                            (i.customers?.city || '').toLowerCase().includes(searchQuery) ||
+                            (i.type || '').toLowerCase().includes(searchQuery)
+                        );
+                    }
+
+                    if (filtered.length === 0) {
+                        api.notifications.show('No invoices to export.', 'error');
+                        return;
+                    }
+
+                    const rows = filtered.map(inv => ({
+                        'Invoice #':          inv.invoice_no || '',
+                        'Date':               inv.date || '',
+                        'Due Date':           inv.due_date || '',
+                        'Customer':           inv.customers?.name || '',
+                        'City':               inv.customers?.city || '',
+                        'GSTIN':              inv.customers?.gstin || '',
+                        'Type':               inv.type || 'Regular',
+                        'Currency':           inv.currency || 'INR',
+                        'Amount':             inv.total_amount || 0,
+                        'INR Equivalent':     (inv.total_amount || 0) * (inv.exchange_rate || 1),
+                        'Status':             inv.status || 'Pending',
+                        'PO Number':          inv.purchase_no || '',
+                        'PO Date':            inv.purchase_date || '',
+                        'Payment Terms':      inv.payment_terms || '',
+                        'Delivery Mode':      inv.delivery_mode || '',
+                        'Bank Account':       inv.bank_id || '',
+                        'TDS Amount':         inv.tds_amount || 0,
+                        'Bank Deduction':     inv.bank_charges_deduction || 0,
+                        'PBG Amount':         inv.pbg_amount || 0,
+                        'Other Deductions':   inv.other_deductions || 0,
+                        'Net Realisation':    (inv.total_amount || 0) - (inv.tds_amount || 0) - (inv.bank_charges_deduction || 0) - (inv.pbg_amount || 0) - (inv.other_deductions || 0)
+                    }));
+
+                    const ws = XLSX.utils.json_to_sheet(rows);
+                    ws['!cols'] = [
+                        { wch: 22 }, { wch: 12 }, { wch: 12 }, { wch: 28 }, { wch: 16 },
+                        { wch: 18 }, { wch: 14 }, { wch: 8  }, { wch: 14 }, { wch: 16 },
+                        { wch: 12 }, { wch: 14 }, { wch: 12 }, { wch: 20 }, { wch: 16 },
+                        { wch: 10 }, { wch: 12 }, { wch: 14 }, { wch: 12 }, { wch: 16 }, { wch: 16 }
+                    ];
+                    const wb = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(wb, ws, `Invoices ${state.fy}`);
+                    XLSX.writeFile(wb, `LaGa_Invoices_${state.fy}_${filter}.xlsx`);
+                    api.notifications.show(`Exported ${filtered.length} invoice(s) to Excel!`, 'success');
+                } catch (err) {
+                    console.error('Export Error:', err);
+                    api.notifications.show('Export failed: ' + err.message, 'error');
+                }
             }
         },
         licenses: {
@@ -8490,7 +8704,9 @@ try {
                         total_amount: parseFloat(document.getElementById('doc-total').textContent.replace(/[₹,]/g, '')),
                         user_id: state.user.id,
                         metadata: {
-                            items: []
+                            items: [],
+                            reason: document.getElementById('doc-reason')?.value || null,
+                            ref_invoice: document.getElementById('doc-ref-invoice')?.value || null
                         }
                     };
 
@@ -8711,7 +8927,9 @@ try {
                         { label: 'Validity End Date:', value: doc.validity_date ? formatDate(doc.validity_date) : '-', hide: type !== 'quotations' && !doc.validity_date },
                         { label: 'Payment Terms:', value: doc.payment_terms || '-' },
                         { label: 'Delivery Time:', value: doc.delivery_time || '-' },
-                        { label: 'Delivery Mode:', value: doc.delivery_mode || '-' }
+                        { label: 'Delivery Mode:', value: doc.delivery_mode || '-' },
+                        { label: 'Reason for Credit:', value: doc.metadata?.reason || '-', hide: type !== 'credit_notes' },
+                        { label: 'Ref. Invoice No:', value: doc.metadata?.ref_invoice || '-', hide: type !== 'credit_notes' }
                     ].filter(d => !d.hide).map(d => {
                         if (d.bold) {
                             pdf.setFont('Poppins', 'bold');
