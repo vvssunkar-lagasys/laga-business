@@ -3515,7 +3515,7 @@ try {
                     if (!ui.invoice.activeId) {
                         ui.invoice.updateDocNo(); 
                         ui.invoice.addItem();
-                        ui.invoice.loadDefaultTerms();
+                        // removed ui.invoice.loadDefaultTerms();
                     }
                 } else if (type === 'purchase') {
                     root.innerHTML = `
@@ -3878,7 +3878,7 @@ try {
                 `;
                     ui.quotation_v2.updateDocNo();
                     ui.quotation_v2.addItem();
-                    ui.quotation_v2.loadDefaultTerms();
+                    // removed ui.quotation_v2.loadDefaultTerms();
 
                 } else if (type === 'proforma-new') {
                     const today = new Date().toISOString().split('T')[0];
@@ -4169,7 +4169,7 @@ try {
                     if (!ui.proforma_v2.activeId) {
                         ui.proforma_v2.updateDocNo();
                         ui.proforma_v2.addItem();
-                        ui.proforma_v2.loadDefaultTerms();
+                        // removed ui.proforma_v2.loadDefaultTerms();
                     }
                 } else if (['quotations', 'proforma', 'challans', 'credit_notes', 'debit_notes', 'purchase_orders'].includes(type)) {
                     const config = {
