@@ -520,6 +520,7 @@ try {
                 <div class="search-container">
                     <svg class="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
                     <input type="text" class="form-input search-input" placeholder="Search customers by name, company, phone etc.." value="${ui.customers.searchQuery || ''}" oninput="ui.customers.search(this.value)">
+                    ${ui.customers.searchQuery ? `<svg class="clear-search-icon" onclick="ui.customers.search('')" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>` : ''}
                 </div>
                 <div class="ml-auto flex items-center gap-2">
 
@@ -702,7 +703,8 @@ try {
                         <div class="search-container flex-1">
                             <svg class="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
                             <input type="text" class="form-input search-input" placeholder="Search invoices, customers, city..." value="${ui.sales.searchQuery || ''}" oninput="ui.sales.search(this.value)">
-                        </div>
+                    ${ui.sales.searchQuery ? `<svg class="clear-search-icon" onclick="ui.sales.search('')" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>` : ''}
+                </div>
 
                         <!-- Premium Currency Stats -->
                         <div class="flex items-center gap-5 px-5 py-2.5 bg-white/60 backdrop-blur-md border border-slate-100 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
@@ -896,8 +898,9 @@ try {
                     <div class="toolbar">
                         <div class="search-container">
                             <svg class="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-                            <input type="text" class="form-input search-input" placeholder="Search by transaction, customers, invoice etc..">
-                        </div>
+                            <input type="text" class="form-input search-input" placeholder="Search by transaction, customers, invoice etc.." oninput="this.nextElementSibling.style.display = this.value ? 'block' : 'none'">
+                            <svg class="clear-search-icon" style="display: none;" onclick="this.previousElementSibling.value=''; this.style.display='none'; this.previousElementSibling.dispatchEvent(new Event('input'))" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </div>
                         <button class="toolbar-btn">
                             This Year
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
@@ -1004,8 +1007,9 @@ try {
                     <div class="toolbar">
                         <div class="search-container">
                             <svg class="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-                            <input type="text" class="form-input search-input" placeholder="Search by transaction, customers, inv etc..">
-                        </div>
+                            <input type="text" class="form-input search-input" placeholder="Search by transaction, customers, inv etc.." oninput="this.nextElementSibling.style.display = this.value ? 'block' : 'none'">
+                            <svg class="clear-search-icon" style="display: none;" onclick="this.previousElementSibling.value=''; this.style.display='none'; this.previousElementSibling.dispatchEvent(new Event('input'))" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </div>
                         <button class="toolbar-btn">
                             This Year
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
@@ -1144,7 +1148,8 @@ try {
                         <div class="search-container flex-1">
                             <svg class="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
                             <input type="text" class="form-input search-input" placeholder="Search by transaction, customers, inv etc.." value="${ui.proforma.searchQuery || ''}" oninput="ui.proforma.search(this.value)">
-                        </div>
+                    ${ui.proforma.searchQuery ? `<svg class="clear-search-icon" onclick="ui.proforma.search('')" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>` : ''}
+                </div>
 
                         <!-- Currency Stats Section -->
                         <div class="flex items-center gap-4 bg-white border border-slate-100 px-4 py-1.5 rounded-xl shadow-sm">
@@ -1365,7 +1370,8 @@ try {
                         <div class="search-container">
                             <svg class="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
                             <input type="text" class="form-input search-input" placeholder="Search by transaction, customers, invoice etc.." value="${ui.quotations.searchQuery || ''}" oninput="ui.quotations.search(this.value)">
-                        </div>
+                    ${ui.quotations.searchQuery ? `<svg class="clear-search-icon" onclick="ui.quotations.search('')" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>` : ''}
+                </div>
                         <div class="flex items-center gap-2 ml-4">
                             ${currencyBadges}
                         </div>
@@ -2183,8 +2189,11 @@ try {
                             <h4 class="font-bold text-slate-900">License Registry</h4>
                             <span class="text-[10px] bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full font-black uppercase tracking-widest">${filteredItems.length} Records</span>
                         </div>
-                        <div class="flex items-center gap-3 w-full md:w-auto">
-                            <input type="text" id="lic-search-input" placeholder="Search by software or serial..." value="${ui.licenses.searchQuery || ''}" oninput="ui.licenses.search(this.value)" class="bg-white border text-sm rounded-xl px-4 py-2 outline-none w-full md:w-64 focus:ring-2 focus:ring-blue-500/20">
+                        <div class="flex items-center gap-3 w-full md:w-auto relative">
+                            <div class="relative w-full md:w-64">
+                                <input type="text" id="lic-search-input" placeholder="Search by software or serial..." value="${ui.licenses.searchQuery || ''}" oninput="ui.licenses.search(this.value)" class="bg-white border text-sm rounded-xl px-4 py-2 outline-none w-full focus:ring-2 focus:ring-blue-500/20">
+                                ${ui.licenses.searchQuery ? `<svg class="clear-search-icon" onclick="ui.licenses.search('')" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>` : ''}
+                            </div>
                             <button onclick="ui.modal.open('license')" class="bg-slate-900 text-white px-6 py-2 rounded-xl text-sm font-bold hover:bg-slate-800 transition-all shadow-lg active:scale-95 shrink-0">+ Add License</button>
                         </div>
                     </div>
@@ -2287,13 +2296,14 @@ try {
                         <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-1">Customer Selection</h4>
                         <div>
                             <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1">Customer Name <span class="text-red-500">*</span></label>
-                            <div class="customer-search-container">
+                            <div class="customer-search-container relative">
                                 <input type="text" id="lic-customer-search" 
                                        class="form-input" 
                                        placeholder="Type customer name..."
-                                       oninput="ui.licenses.filterCustomers(this.value)"
+                                       oninput="ui.licenses.filterCustomers(this.value); this.nextElementSibling.style.display = this.value ? 'block' : 'none'"
                                        autocomplete="off"
                                        value="${data.customer_name || ''}">
+                                <svg class="clear-search-icon" style="display: ${data.customer_name ? 'block' : 'none'};" onclick="this.previousElementSibling.value=''; this.style.display='none'; ui.licenses.filterCustomers(''); this.previousElementSibling.dispatchEvent(new Event('input'))" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                                 <input type="hidden" name="customer_id" id="lic-customer-id" value="${data.customer_id || ''}" required>
                                 <div id="lic-customer-results" class="customer-results-list hidden"></div>
                             </div>
@@ -3359,8 +3369,9 @@ try {
                                     <input type="text" id="inv-customer-search" 
                                            class="w-full text-lg font-black bg-transparent border-none p-0 focus:ring-0 placeholder:text-slate-300" 
                                            placeholder="Type customer name..." 
-                                           oninput="ui.invoice.filterCustomers(this.value)"
+                                           oninput="ui.invoice.filterCustomers(this.value); this.nextElementSibling.style.display = this.value ? 'block' : 'none'"
                                            autocomplete="off">
+                                    <svg class="clear-search-icon" style="display: none;" onclick="this.previousElementSibling.value=''; this.style.display='none'; ui.invoice.filterCustomers(''); this.previousElementSibling.dispatchEvent(new Event('input'))" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                                     <input type="hidden" id="inv-customer">
                                     <div id="inv-customer-results" class="customer-results-list hidden"></div>
                                     
@@ -3734,8 +3745,9 @@ try {
                                      <input type="text" id="qtn-customer-search" 
                                             class="w-full text-lg font-black bg-transparent border-none p-0 focus:ring-0 placeholder:text-slate-300" 
                                             placeholder="Type customer name..."
-                                            oninput="ui.quotation_v2.filterCustomers(this.value)"
+                                            oninput="ui.quotation_v2.filterCustomers(this.value); this.nextElementSibling.style.display = this.value ? 'block' : 'none'"
                                             autocomplete="off">
+                                     <svg class="clear-search-icon" style="display: none;" onclick="this.previousElementSibling.value=''; this.style.display='none'; ui.quotation_v2.filterCustomers(''); this.previousElementSibling.dispatchEvent(new Event('input'))" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                                      <input type="hidden" id="qtn-customer">
                                      <div id="qtn-customer-results" class="customer-results-list hidden"></div>
 
@@ -4034,12 +4046,13 @@ try {
                         <div class="builder-section grid grid-cols-12 gap-0 border-b-2">
                             <div class="col-span-12 lg:col-span-3 pr-8">
                                 <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Select Customer</label>
-                                <div class="customer-search-container">
+                                <div class="customer-search-container relative">
                                     <input type="text" id="pfi-customer-search" 
                                            class="w-full text-lg font-black bg-transparent border-none p-0 focus:ring-0 placeholder:text-slate-300" 
                                            placeholder="Type customer name..."
-                                           oninput="ui.proforma_v2.filterCustomers(this.value)"
+                                           oninput="ui.proforma_v2.filterCustomers(this.value); this.nextElementSibling.style.display = this.value ? 'block' : 'none'"
                                            autocomplete="off">
+                                    <svg class="clear-search-icon" style="display: none;" onclick="this.previousElementSibling.value=''; this.style.display='none'; ui.proforma_v2.filterCustomers(''); this.previousElementSibling.dispatchEvent(new Event('input'))" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                                     <input type="hidden" id="pfi-customer">
                                     <div id="pfi-customer-results" class="customer-results-list hidden"></div>
                                 </div>
@@ -4719,9 +4732,10 @@ try {
                 div.className = 'spotlight-overlay';
                 div.innerHTML = `
                     <div class="spotlight-modal">
-                        <div class="spotlight-search-header">
+                        <div class="spotlight-search-header" style="position: relative;">
                             <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-                            <input type="text" id="spotlight-input" class="spotlight-input" placeholder="Search customers, invoices, quotes..." autocomplete="off">
+                            <input type="text" id="spotlight-input" class="spotlight-input" placeholder="Search customers, invoices, quotes..." autocomplete="off" oninput="this.nextElementSibling.style.display = this.value ? 'block' : 'none'">
+                            <svg class="clear-search-icon" style="display: none;" onclick="this.previousElementSibling.value=''; this.style.display='none'; this.previousElementSibling.dispatchEvent(new Event('input'))" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                         </div>
                         <div id="spotlight-results" class="spotlight-results">
                             <div class="p-8 text-center text-slate-400 text-sm">Type something to search... (Ctrl+K)</div>
