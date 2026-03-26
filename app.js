@@ -9287,7 +9287,8 @@ try {
                 },
 
                 renderTerms: (pdf, doc, startY, margin, pageWidth, pageHeight) => {
-                    const splitTerms = pdf.splitTextToSize(doc.terms || '', pageWidth - (margin * 2) - 4);
+                    const finalTerms = doc.terms || doc.notes || '';
+                    const splitTerms = pdf.splitTextToSize(finalTerms, pageWidth - (margin * 2) - 4);
                     const termsBoxHeight = 9 + (splitTerms.length * 3.5) + 2;
                     let finalY = startY;
                     if (finalY + termsBoxHeight > pageHeight - 10) { pdf.addPage(); finalY = margin; }
