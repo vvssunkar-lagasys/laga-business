@@ -4658,6 +4658,7 @@ try {
                 ui.invoice.activeId = null; // Clear invoice state
                 ui.quotation_v2.activeId = null;
                 ui.quotation_v2.activeStatus = null;
+                ui.proforma_v2.activeId = null; // Clear proforma state
                 document.getElementById('modal-overlay').classList.remove('active');
             },
 
@@ -9286,8 +9287,7 @@ try {
                 },
 
                 renderTerms: (pdf, doc, startY, margin, pageWidth, pageHeight) => {
-                    const fallbackTerms = "1. Software Warranty:\nThe software is warranted against any design defects as per the specified requirements for a period of one (1) year from the date of supply. During the warranty period, you will be entitled to free software upgrades and technical support.\n\n2. Equipment Warranty:\nThe equipment carries a warranty of one (1) year from the date of supply. The warranty will be void in the event of misuse, mishandling, unauthorized modifications, or physical damage to the equipment.\n\n3. Installation and Training:\nPlease note that the above-mentioned price does not include physical installation and training services. These services can be provided separately upon request at an additional cost.";
-                    const splitTerms = pdf.splitTextToSize(doc.terms || fallbackTerms, pageWidth - (margin * 2) - 4);
+                    const splitTerms = pdf.splitTextToSize(doc.terms || '', pageWidth - (margin * 2) - 4);
                     const termsBoxHeight = 9 + (splitTerms.length * 3.5) + 2;
                     let finalY = startY;
                     if (finalY + termsBoxHeight > pageHeight - 10) { pdf.addPage(); finalY = margin; }
