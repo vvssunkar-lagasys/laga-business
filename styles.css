@@ -397,9 +397,27 @@ button:disabled {
 }
 
 .nav-dropdown-trigger:hover {
-    background: rgba(255, 255, 255, 0.03);
-    color: #f1f5f9;
-    border-color: rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--slate-100);
+}
+
+.nav-dropdown-trigger.active .chevron {
+    transform: rotate(180deg);
+    color: var(--brand-primary);
+}
+
+.nav-dropdown-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    opacity: 0;
+    pointer-events: none;
+}
+
+.nav-dropdown-content.active {
+    max-height: 500px;
+    opacity: 1;
+    pointer-events: auto;
 }
 
 .nav-sub-link {
@@ -407,41 +425,184 @@ button:disabled {
     align-items: center;
     gap: 0.75rem;
     padding: 0.5rem 0.75rem;
-    color: #64748b;
+    color: var(--slate-500);
     text-decoration: none;
-    font-size: 0.8125rem;
+    font-size: 0.8rem;
     font-weight: 500;
     border-radius: 0.5rem;
-    transition: all 0.2s;
+    transition: all 0.2s ease;
 }
 
 .nav-sub-link:hover {
-    color: #e2e8f0;
-    background: rgba(255, 255, 255, 0.02);
+    color: var(--slate-200);
+    background: rgba(255, 255, 255, 0.03);
+    transform: translateX(4px);
 }
 
-.nav-dropdown-content {
-    max-height: 0;
-    overflow: hidden;
-    transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    opacity: 0;
+.nav-sub-link.active {
+    color: var(--brand-primary);
+    font-weight: 700;
+    background: var(--brand-surface);
 }
 
-.nav-dropdown-content.active {
-    max-height: 500px;
-    opacity: 1;
+.nav-link {
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    border-radius: 0.75rem;
+}
+
+.nav-link.active {
+    background: rgba(59, 130, 246, 0.1) !important;
+    color: white !important;
+}
+
+.nav-link.active::before {
+    content: '';
+    position: absolute;
+    left: -4px;
+    top: 0.75rem;
+    bottom: 0.75rem;
+    width: 3px;
+    background: #3b82f6;
+    border-radius: 0 4px 4px 0;
+    box-shadow: 2px 0 10px rgba(59, 130, 246, 0.5);
+}
+
+.nav-link.active .nav-icon {
+    color: #3b82f6 !important;
+    filter: drop-shadow(0 0 5px rgba(59, 130, 246, 0.3));
 }
 
 .chevron {
     transition: transform 0.2s ease;
 }
 
-.nav-dropdown-trigger.active .chevron {
-    transform: rotate(180deg);
+/* Tooltip System for Collapsed Sidebar */
+aside.collapsed .nav-link[data-tooltip] {
+    position: relative;
 }
 
-/* --- Sidebar Collapse --- */
-#main-root.sidebar-collapsed aside {
+aside.collapsed .nav-link[data-tooltip]::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    left: calc(100% + 15px);
+    top: 50%;
+    transform: translateY(-50%) translateX(-10px);
+    background: #1e293b;
+    color: #f8fafc;
+    padding: 0.5rem 0.8rem;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    z-index: 10000;
+}
+
+/* Tooltip Arrow */
+aside.collapsed .nav-link[data-tooltip]::before {
+    content: '';
+    position: absolute;
+    left: calc(100% + 10px);
+    top: 50%;
+    transform: translateY(-50%) translateX(-10px);
+    border: 5px solid transparent;
+    border-right-color: #1e293b;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 10000;
+}
+
+aside.collapsed .nav-link[data-tooltip]:hover::after,
+aside.collapsed .nav-link[data-tooltip]:hover::before {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(-50%) translateX(0);
+}
+
+/* FAB Action Toggle */
+#fab-menu.active {
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    transform: translateY(0) !important;
+}
+
+#fab-main.active {
+    rotate: 135deg !important;
+    background: #1e293b !important;
+}
+
+/* Sidebar States (Collapsed/Icon-Only) */
+aside.collapsed {
+    width: 64px !important;
+    overflow: visible !important;
+}
+
+aside.collapsed nav {
+    overflow: visible !important;
+}
+
+/* Hide everything except icons and the core sidebar container in collapsed mode */
+aside.collapsed .sidebar-logo-text,
+aside.collapsed .sidebar-search input,
+aside.collapsed .sidebar-search-reset,
+aside.collapsed .nav-link span:not(.nav-icon),
+aside.collapsed .nav-dropdown-trigger span:not(.nav-icon),
+aside.collapsed .nav-dropdown-trigger .chevron,
+aside.collapsed .nav-dropdown-content,
+aside.collapsed .px-2.mb-2,
+aside.collapsed .my-4.border-t,
+aside.collapsed #user-display,
+aside.collapsed .text-xs,
+aside.collapsed p {
+    display: none !important;
+}
+
+/* Center and adjust spacing for icons in collapsed mode */
+aside.collapsed .logo-area {
+    padding: 0 !important;
+    justify-content: center !important;
+}
+
+aside.collapsed .sidebar-search {
+    margin: 1rem 0.5rem !important;
+    display: flex;
+    justify-content: center;
+}
+
+aside.collapsed .sidebar-search svg.search-icon {
+    position: static !important;
+    transform: none !important;
+    margin: 0 !important;
+}
+
+aside.collapsed .nav-link,
+aside.collapsed .nav-dropdown-trigger {
+    justify-content: center !important;
+    padding: 0.75rem 0 !important;
+    margin: 0.25rem 0.5rem !important;
+}
+
+aside.collapsed .nav-icon {
+    margin: 0 !important;
+}
+
+aside.collapsed .sidebar-profile {
+    padding: 1rem 0 !important;
+    display: flex;
+    justify-content: center;
+}
+
+aside.collapsed #logout-btn {
+    padding: 0.5rem !important;
+}
+
+#main-root.sidebar-hidden aside {
     margin-left: -18rem;
     opacity: 0;
     pointer-events: none;
@@ -449,8 +610,62 @@ button:disabled {
 
 aside {
     box-shadow: 4px 0 24px rgba(0, 0, 0, 0.4);
-    transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease !important;
+    transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
 }
+
+/* Quick Search Sidebar */
+.sidebar-search {
+    margin: 1rem;
+    position: relative;
+}
+
+.sidebar-search input {
+    background: rgba(30, 41, 59, 0.5);
+    border: 1px solid rgba(51, 65, 85, 0.5);
+    color: white;
+    font-size: 0.75rem;
+    padding: 0.5rem 0.75rem 0.5rem 2rem;
+    border-radius: 0.75rem;
+    width: 100%;
+    outline: none;
+    transition: all 0.2s;
+}
+
+.sidebar-search input:focus {
+    border-color: var(--brand-primary);
+    background: rgba(30, 41, 59, 0.8);
+    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+}
+
+.sidebar-search svg.search-icon {
+    position: absolute;
+    left: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--slate-500);
+}
+
+.sidebar-search-reset {
+    position: absolute;
+    right: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--slate-500);
+    cursor: pointer;
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.2s;
+}
+
+.sidebar-search input:not(:placeholder-shown) ~ .sidebar-search-reset {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.sidebar-search-reset:hover {
+    color: white;
+}
+
 
 .custom-scrollbar::-webkit-scrollbar {
     width: 4px;

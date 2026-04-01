@@ -688,12 +688,6 @@ try {
                         <div class="tab-item ${filter === 'Paid' ? 'active' : ''}" onclick="ui.sales.setFilter('Paid')">
                             Paid <span class="tab-count !bg-emerald-100 !text-emerald-700">${totals.counts.paid}</span>
                         </div>
-                        <div class="tab-item ${filter === 'Closed' ? 'active' : ''}" onclick="ui.sales.setFilter('Closed')">
-                            Closed <span class="tab-count !bg-indigo-100 !text-indigo-700">${totals.counts.closed}</span>
-                        </div>
-                        <div class="tab-item ${filter === 'Cancelled' ? 'active' : ''}" onclick="ui.sales.setFilter('Cancelled')">
-                            Cancelled <span class="tab-count !bg-rose-100 !text-rose-700">${totals.counts.cancelled}</span>
-                        </div>
                         <div class="tab-item ${filter === 'Drafts' ? 'active' : ''}" onclick="ui.sales.setFilter('Drafts')">
                             Drafts <span class="tab-count !bg-slate-200 !text-slate-700">${totals.counts.draft}</span>
                         </div>
@@ -974,110 +968,136 @@ try {
                 </div>
             `;
         },
-        Challans: (items, filter = 'All') => {
-            const stats = items.reduce((acc, c) => {
-                acc.total += c.total_amount;
-                if (c.status === 'Closed') acc.closed += c.total_amount;
-                return acc;
-            }, { total: 0, closed: 0 });
+        Challans: (challans, filter = 'All') => {
+            const searchQuery = (ui.challans.searchQuery || '').toLowerCase();
+            const itemsFY = challans.filter(i => isWithinFY(i.date, state.fy));
 
-            const filteredItems = filter === 'All' ? items : items.filter(i => (i.status === filter || (filter === 'Open' && i.status === 'open')));
+            let filtered = filter === 'All' ? itemsFY : itemsFY.filter(i => 
+                (filter === 'Drafts' && i.status === 'Draft') || 
+                (filter === 'Delivered' && i.status === 'Delivered') ||
+                i.status === filter
+            );
+
+            if (searchQuery) {
+                filtered = filtered.filter(i => 
+                    (i.doc_no || '').toLowerCase().includes(searchQuery) ||
+                    (i.customers?.name || '').toLowerCase().includes(searchQuery) ||
+                    (i.customers?.city || '').toLowerCase().includes(searchQuery)
+                );
+            }
 
             return `
-                <div class="animate-fade-in">
-                    <div class="dashboard-header">
-                        <div class="dashboard-title">
-                            <h2>Delivery Challans</h2>
+                <div class="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+                        <div>
+                            <h1 class="text-3xl font-bold text-slate-900 tracking-tight">Delivery Challans</h1>
+                            <p class="text-slate-500 mt-1 font-medium">Manage and track your delivery documents</p>
                         </div>
-                        <div class="flex items-center gap-4">
-                            <button class="flex items-center gap-2 text-slate-600 font-medium text-sm">
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                                Document Settings
-                            </button>
-                            <button onclick="ui.modal.open('challans')" class="bg-[#3b82f6] text-white px-6 py-2 rounded-lg font-bold hover:bg-blue-600 transition-all">+ Create Delivery Challan</button>
-                        </div>
-                    </div>
-
-                    <div class="status-tabs">
-                        <div class="tab-item ${filter === 'All' ? 'active' : ''}" onclick="ui.challans.setFilter('All')">All <span class="tab-count">${items.length}</span></div>
-                        <div class="tab-item ${filter === 'Cancelled' ? 'active' : ''}" onclick="ui.challans.setFilter('Cancelled')">Cancelled</div>
-                        <div class="tab-item ${filter === 'Drafts' ? 'active' : ''}" onclick="ui.challans.setFilter('Drafts')">Drafts</div>
-                    </div>
-
-                    <div class="toolbar">
-                        <div class="search-container">
-                            <svg class="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-                            <input type="text" class="form-input search-input" placeholder="Search by transaction, customers, inv etc.." oninput="this.nextElementSibling.style.display = this.value ? 'block' : 'none'">
-                            <svg class="clear-search-icon" style="display: none;" onclick="this.previousElementSibling.value=''; this.style.display='none'; this.previousElementSibling.dispatchEvent(new Event('input'))" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                </div>
-                        <button class="toolbar-btn">
-                            This Year
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                        </button>
-                        <div class="ml-auto flex items-center gap-2">
-                            <button class="toolbar-btn">
-                                Actions
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                            </button>
-                            <button class="p-2 text-slate-400 hover:text-slate-600">
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg>
+                        <div class="flex items-center gap-3">
+                            <button onclick="ui.modal.open('challans')" class="flex items-center gap-2 px-5 py-2.5 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-all shadow-lg shadow-slate-200 active:scale-95">
+                                <i class="ri-add-line text-lg"></i>
+                                New Challan
                             </button>
                         </div>
                     </div>
 
-                    <div class="glass rounded-2xl overflow-hidden shadow-sm">
-                        <table class="w-full text-left sales-table">
-                            <thead>
-                                <tr>
-                                    <th>Amount <svg class="inline w-3 h-3 text-slate-300" fill="currentColor" viewBox="0 0 20 20"><path d="M5 12l5 5 5-5H5zM5 8l5-5 5 5H5z"></path></svg></th>
-                                    <th>Bill # <svg class="inline w-3 h-3 text-slate-300" fill="currentColor" viewBox="0 0 20 20"><path d="M5 12l5 5 5-5H5zM5 8l5-5 5 5H5z"></path></svg></th>
-                                    <th>Customer</th>
-                                    <th>Date <svg class="inline w-3 h-3 text-slate-300" fill="currentColor" viewBox="0 0 20 20"><path d="M5 12l5 5 5-5H5zM5 8l5-5 5 5H5z"></path></svg></th>
-                                    <th></th>
-                                </tr>
-                            </thead>
-                            <tbody class="text-sm">
-                                ${filteredItems.length ? filteredItems.map(c => `
-                                    <tr>
-                                        <td class="font-bold">₹${c.total_amount.toLocaleString()}</td>
-                                        <td class="font-bold text-slate-600">${c.doc_no || 'DC-' + c.id.slice(0, 3)}</td>
-                                        <td>
-                                            <div class="font-medium text-slate-900">${c.customers?.name || 'Walk-in Customer'}</div>
-                                            <div class="text-[10px] text-slate-400 font-medium">${c.customers?.phone || ''}</div>
-                                        </td>
-                                        <td>
-                                            <div class="font-medium text-slate-900">${formatDate(c.date)}</div>
-                                            <div class="text-[10px] text-slate-400 font-medium">Yesterday, 2:11 PM</div>
-                                        </td>
-                                        <td>
-                                            <div class="flex items-center gap-2">
-                                                <button class="view-btn">
-                                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
-                                                    View
-                                                </button>
-                                                <button class="send-btn">
-                                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
-                                                    Send
-                                                </button>
-                                                <button class="p-1 rounded bg-slate-50 text-slate-400 hover:text-slate-600">
-                                                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM16 12a2 2 0 100-4 2 2 0 000 4z"></path></svg>
-                                                </button>
-                                            </div>
-                                        </td>
+                    <div class="bg-white rounded-3xl border border-slate-200/60 shadow-sm overflow-hidden mb-8">
+                        <div class="p-4 border-bottom border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                            <div class="flex items-center bg-slate-50 p-1 rounded-xl w-fit">
+                                ${['All', 'Delivered', 'Drafts'].map(f => `
+                                    <button onclick="ui.challans.setFilter('${f}')" 
+                                        class="px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${filter === f ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}">
+                                        ${f}
+                                    </button>
+                                `).join('')}
+                            </div>
+                            <div class="relative group">
+                                <i class="ri-search-line absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-slate-900 transition-colors"></i>
+                                <input type="text" 
+                                    placeholder="Search challans..." 
+                                    value="${ui.challans.searchQuery || ''}"
+                                    oninput="ui.challans.search(this.value)"
+                                    class="search-input pl-11 pr-4 py-2.5 bg-slate-50 border-none rounded-xl text-sm font-medium focus:ring-2 focus:ring-slate-900/5 transition-all w-full md:w-72">
+                                ${ui.challans.searchQuery ? `
+                                    <button onclick="ui.challans.search(''); render();" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors">
+                                        <i class="ri-close-circle-fill text-lg"></i>
+                                    </button>
+                                ` : ''}
+                            </div>
+                        </div>
+
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse">
+                                <thead>
+                                    <tr class="bg-slate-50/50">
+                                        <th class="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Document Details</th>
+                                        <th class="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Customer & Destination</th>
+                                        <th class="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider text-right">Value</th>
+                                        <th class="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider text-center">Status</th>
+                                        <th class="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider text-right">Actions</th>
                                     </tr>
-                                `).join('') : `
-                                    <tr>
-                                        <td colspan="5">
-                                            <div class="empty-state">
-                                                <div class="empty-state-icon">Oops 😳 !</div>
-                                                <h3>No delivery challans found.</h3>
-                                                <p>Please select different <a href="#" class="text-blue-500 font-bold">dates</a> or create a new <a href="#" onclick="ui.modal.open('challans')" class="text-blue-500 font-bold">Delivery Challan</a></p>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                `}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100">
+                                    ${filtered.length === 0 ? `
+                                        <tr>
+                                            <td colspan="5" class="px-6 py-12 text-center">
+                                                <div class="flex flex-col items-center gap-3">
+                                                    <div class="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center">
+                                                        <i class="ri-file-list-3-line text-2xl text-slate-300"></i>
+                                                    </div>
+                                                    <p class="text-slate-400 font-medium tracking-tight">No challans found for this period</p>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ` : filtered.map(item => {
+                                        const status = item.status || 'Draft';
+                                        const statusColors = {
+                                            'Delivered': 'bg-emerald-50 text-emerald-600 border-emerald-100',
+                                            'Draft': 'bg-slate-50 text-slate-500 border-slate-100',
+                                            'Open': 'bg-blue-50 text-blue-600 border-blue-100'
+                                        };
+                                        const colorClass = statusColors[status] || 'bg-slate-50 text-slate-600 border-slate-100';
+
+                                        return `
+                                            <tr class="hover:bg-slate-50/50 transition-colors group">
+                                                <td class="px-6 py-4">
+                                                    <div class="flex flex-col">
+                                                        <span class="font-bold text-slate-900 group-hover:text-slate-800 transition-colors">#${item.doc_no || 'DCH-000'}</span>
+                                                        <span class="text-xs text-slate-400 font-medium mt-0.5">${formatDate(item.date)}</span>
+                                                    </div>
+                                                </td>
+                                                <td class="px-6 py-4">
+                                                    <div class="flex flex-col">
+                                                        <span class="font-bold text-slate-900">${item.customers?.name || 'Walk-in'}</span>
+                                                        <span class="text-xs text-slate-400 font-medium mt-0.5">${item.customers?.city || 'No Address'}</span>
+                                                    </div>
+                                                </td>
+                                                <td class="px-6 py-4 text-right">
+                                                    <span class="font-bold text-slate-900 text-sm">₹${(item.total_amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                                                </td>
+                                                <td class="px-6 py-4">
+                                                    <div class="flex justify-center">
+                                                        <span class="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider border ${colorClass}">
+                                                            ${status}
+                                                        </span>
+                                                    </div>
+                                                </td>
+                                                <td class="px-6 py-4">
+                                                    <div class="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <button onclick="api.docs.generatePDF('challans', '${item.id}')" class="p-2 hover:bg-white hover:shadow-sm rounded-lg text-slate-400 hover:text-slate-900 transition-all border border-transparent hover:border-slate-100" title="Download PDF">
+                                                            <i class="ri-download-2-line text-lg"></i>
+                                                        </button>
+                                                        <button onclick="api.docs.delete('challans', '${item.id}')" class="p-2 hover:bg-white hover:shadow-sm rounded-lg text-slate-400 hover:text-red-600 transition-all border border-transparent hover:border-red-50" title="Delete">
+                                                            <i class="ri-delete-bin-line text-lg"></i>
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        `;
+                                    }).join('')}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             `;
@@ -1315,11 +1335,16 @@ try {
                 return acc;
             }, { total: 0, closed: 0 });
 
-            let filteredItems = filter === 'All' ? itemsFY : itemsFY.filter(i => (
-                i.status === filter ||
-                (filter === 'Open' && i.status === 'open') ||
-                (filter === 'Drafts' && i.status === 'Draft')
-            ));
+            let filteredItems = filter === 'All' ? itemsFY : itemsFY.filter(i => {
+                if (filter === 'Open') return i.status === 'open' || i.status === 'Open';
+                if (filter === 'Drafts') return i.status === 'Draft';
+                if (filter === 'Expired') {
+                    const validityDate = i.validity_date ? new Date(i.validity_date) : null;
+                    const isPast = validityDate && validityDate < new Date();
+                    return i.status === 'Cancelled' || i.status === 'Expired' || isPast;
+                }
+                return i.status === filter;
+            });
 
 
             if (ui.quotations.searchQuery) {
@@ -1361,8 +1386,7 @@ try {
                         <div class="tab-item ${filter === 'All' ? 'active' : ''}" onclick="ui.quotations.setFilter('All')">All <span class="tab-count">${items.length}</span></div>
                         <div class="tab-item ${filter === 'Open' ? 'active' : ''}" onclick="ui.quotations.setFilter('Open')">Open</div>
                         <div class="tab-item ${filter === 'Closed' ? 'active' : ''}" onclick="ui.quotations.setFilter('Closed')">Closed</div>
-                        <div class="tab-item ${filter === 'Partial' ? 'active' : ''}" onclick="ui.quotations.setFilter('Partial')">Partial</div>
-                        <div class="tab-item ${filter === 'Cancelled' ? 'active' : ''}" onclick="ui.quotations.setFilter('Cancelled')">Cancelled</div>
+                        <div class="tab-item ${filter === 'Expired' ? 'active' : ''}" onclick="ui.quotations.setFilter('Expired')">Expired</div>
                         <div class="tab-item ${filter === 'Drafts' ? 'active' : ''}" onclick="ui.quotations.setFilter('Drafts')">Drafts</div>
                     </div>
 
@@ -1435,7 +1459,9 @@ try {
                                             <div class="text-[9px] text-slate-400 font-bold uppercase tracking-tighter mt-0.5">${q.currency || 'INR'}</div>
                                         </td>
                                         <td class="p-4 text-center">
-                                            <span class="status-badge ${q.status?.toLowerCase() === 'open' ? 'open' : (q.status === 'Closed' ? 'bg-emerald-100 text-emerald-700 text-[10px]' : 'bg-slate-100 text-slate-700 text-[10px]')}">
+                                            <span onclick="api.quotations.toggleStatus('${q.id}', '${q.status === 'Closed' ? 'Open' : 'Closed'}')" 
+                                                  class="status-badge cursor-pointer hover:opacity-80 transition-opacity ${q.status?.toLowerCase() === 'open' ? 'open' : (q.status === 'Closed' ? 'bg-emerald-100 text-emerald-700 text-[10px]' : 'bg-slate-100 text-slate-700 text-[10px]')}"
+                                                  title="Click to mark as ${q.status === 'Closed' ? 'Open' : 'Closed'}">
                                                 ${q.status || 'Open'}
                                             </span>
                                         </td>
@@ -2733,6 +2759,9 @@ try {
             search: (query) => {
                 ui.customers.searchQuery = query;
                 render();
+            },
+            create: () => {
+                ui.modal.open('customer');
             }
         },
         customer: {
@@ -4348,6 +4377,19 @@ try {
                                 </div>
                             </div>
 
+                            ${type === 'challans' ? `
+                                <div class="grid grid-cols-2 gap-8 mb-8">
+                                    <div class="glass p-6 rounded-2xl bg-slate-50/50">
+                                        <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Vehicle Number</label>
+                                        <input type="text" id="doc-vehicle-no" class="form-input font-bold" placeholder="e.g. KA-01-AB-1234">
+                                    </div>
+                                    <div class="glass p-6 rounded-2xl bg-slate-50/50">
+                                        <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Transporter Name</label>
+                                        <input type="text" id="doc-transporter" class="form-input font-bold" placeholder="e.g. Blue Dart / VRL">
+                                    </div>
+                                </div>
+                            ` : ''}
+
                             ${type === 'credit_notes' ? `
                                 <div class="grid grid-cols-2 gap-8 mb-8">
                                     <div class="glass p-6 rounded-2xl bg-slate-50/50 border border-rose-100">
@@ -5032,9 +5074,82 @@ try {
         sidebar: {
             toggle: (id) => {
                 const content = document.getElementById(`dropdown-${id}`);
+                if (!content) return;
                 const trigger = content.previousElementSibling;
+                
+                // Toggle this one
                 content.classList.toggle('active');
-                trigger.classList.toggle('active');
+                if (trigger) trigger.classList.toggle('active');
+
+                // Close others
+                document.querySelectorAll('.nav-dropdown-content').forEach(c => {
+                    if (c.id !== `dropdown-${id}`) {
+                        c.classList.remove('active');
+                        if (c.previousElementSibling) c.previousElementSibling.classList.remove('active');
+                    }
+                });
+            },
+            collapse: () => {
+                const aside = document.querySelector('aside');
+                aside.classList.toggle('collapsed');
+            },
+            search: (query) => {
+                const q = query.toLowerCase();
+                const links = document.querySelectorAll('.nav-link, .nav-sub-link');
+                const groups = document.querySelectorAll('.mt-6, .mt-1'); // Module groups
+
+                links.forEach(link => {
+                    const text = link.textContent.toLowerCase();
+                    const visible = text.includes(q);
+                    link.style.display = visible ? 'flex' : 'none';
+                });
+
+                // Handle dropdown triggers
+                document.querySelectorAll('.nav-dropdown-trigger').forEach(trigger => {
+                    const content = document.getElementById(trigger.getAttribute('onclick')?.match(/'([^']+)'/)?.[1]);
+                    // If any child is visible, show trigger
+                    const dropdownId = trigger.getAttribute('onclick')?.match(/'([^']+)'/)?.[1];
+                    if (dropdownId) {
+                        const content = document.getElementById(`dropdown-${dropdownId}`);
+                        const children = content ? content.querySelectorAll('.nav-sub-link') : [];
+                        const hasVisibleChild = Array.from(children).some(c => c.style.display !== 'none');
+                        trigger.parentElement.style.display = (hasVisibleChild || trigger.textContent.toLowerCase().includes(q)) ? 'block' : 'none';
+                        
+                        if (q && hasVisibleChild) {
+                            content.classList.add('active');
+                            trigger.classList.add('active');
+                        }
+                    }
+                });
+
+                // Show/hide headers based on visibility of items following them
+                document.querySelectorAll('.px-2.mb-2').forEach(header => {
+                    let next = header.nextElementSibling;
+                    let hasVisible = false;
+                    while (next && !next.classList.contains('px-2.mb-2') && !next.classList.contains('my-4')) {
+                        if (next.style.display !== 'none') {
+                            hasVisible = true;
+                            break;
+                        }
+                        next = next.nextElementSibling;
+                    }
+                    header.style.display = hasVisible ? 'block' : 'none';
+                });
+            },
+            clearSearch: () => {
+                const input = document.getElementById('sidebar-search-input');
+                if (input) {
+                    input.value = '';
+                    ui.sidebar.search('');
+                }
+            },
+            toggleQuickActions: () => {
+                const menu = document.getElementById('fab-menu');
+                const btn = document.getElementById('fab-main');
+                if (menu && btn) {
+                    menu.classList.toggle('active');
+                    btn.classList.toggle('active');
+                }
             }
         },
         reports: {
@@ -5618,6 +5733,15 @@ try {
         },
         invoice: {
             activeId: null,
+            sourcePfiId: null,
+            sourceQuotationId: null,
+
+            create: () => {
+                ui.invoice.activeId = null;
+                ui.invoice.sourcePfiId = null;
+                ui.invoice.sourceQuotationId = null;
+                ui.modal.open('invoice');
+            },
 
             filterCustomers: (query) => {
                 const results = document.getElementById('inv-customer-results');
@@ -6173,6 +6297,13 @@ try {
         proforma_v2: {
             activeId: null,
             activeStatus: null,
+            sourceQuotationId: null,
+
+            create: () => {
+                ui.proforma_v2.activeId = null;
+                ui.proforma_v2.sourceQuotationId = null;
+                ui.modal.open('proforma-new');
+            },
 
             filterCustomers: (query) => {
                 const results = document.getElementById('pfi-customer-results');
@@ -6545,6 +6676,16 @@ try {
                     }
 
                     ui.modal.close();
+                    
+                    // If converted from Quotation, mark it as closed
+                    if (ui.proforma_v2.sourceQuotationId) {
+                        await supabaseClient.from('quotations')
+                            .update({ status: 'Closed' })
+                            .eq('id', ui.proforma_v2.sourceQuotationId);
+                        ui.proforma_v2.sourceQuotationId = null;
+                        await api.docs.fetch('quotations');
+                    }
+
                     await api.docs.fetch('proforma');
                     api.notifications.show(`Pro Forma ${isDraft ? 'Draft ' : ''}Saved Successfully`);
 
@@ -6565,6 +6706,11 @@ try {
             activeId: null,
             activeStatus: null,
             includeSignature: true,
+
+            create: () => {
+                ui.quotation_v2.activeId = null;
+                ui.modal.open('quotation-new');
+            },
 
             filterCustomers: (query) => {
                 const results = document.getElementById('qtn-customer-results');
@@ -7450,9 +7596,20 @@ try {
 
         challans: {
             filter: 'All',
+            searchQuery: '',
             setFilter: (f) => {
                 ui.challans.filter = f;
                 render();
+            },
+            search: (q) => {
+                ui.challans.searchQuery = q;
+                render();
+                // Restore focus
+                const input = document.querySelector('.search-input');
+                if (input) {
+                    input.focus();
+                    input.setSelectionRange(input.value.length, input.value.length);
+                }
             }
         }
 
@@ -7727,9 +7884,18 @@ try {
                             .eq('id', ui.invoice.sourcePfiId);
                     }
 
+                    // If converted from Quotation, mark Quotation as closed
+                    if (ui.invoice.sourceQuotationId) {
+                        await supabaseClient.from('quotations')
+                            .update({ status: 'Closed' })
+                            .eq('id', ui.invoice.sourceQuotationId);
+                        await api.docs.fetch('quotations');
+                    }
+
                     ui.modal.close();
                     ui.invoice.activeId = null;
                     ui.invoice.sourcePfiId = null;
+                    ui.invoice.sourceQuotationId = null;
                     await api.invoices.fetch();
                     api.notifications.show(isDraft ? 'Draft saved successfully!' : 'Invoice saved successfully!', 'success');
 
@@ -8385,6 +8551,25 @@ try {
                 }
             }
         },
+        quotations: {
+            toggleStatus: async (id, status) => {
+                if (!confirm(`Mark this quotation as ${status}?`)) return;
+                try {
+                    const { error } = await supabaseClient
+                        .from('quotations')
+                        .update({ status: status })
+                        .eq('id', id);
+
+                    if (error) throw error;
+
+                    api.notifications.show(`Quotation marked as ${status}`, 'success');
+                    await api.docs.fetch('quotations');
+                } catch (err) {
+                    console.error('Quotation Status Toggle Error:', err);
+                    api.notifications.show('Failed to update status', 'error');
+                }
+            }
+        },
         proforma: {
             togglePaymentStatus: async (id, status) => {
                 try {
@@ -8471,6 +8656,7 @@ try {
 
                     // 3. Mark source and active state
                     ui.invoice.sourcePfiId = pfi.id;
+                    ui.invoice.sourceQuotationId = null;
                     ui.invoice.activeId = null;
 
                     // 4. Map PFI fields to Invoice form
@@ -8551,6 +8737,7 @@ try {
 
                     // 3. Mark source and active state
                     ui.proforma_v2.activeId = null;
+                    ui.proforma_v2.sourceQuotationId = quotationId;
 
                     // 4. Map Quotation fields to Pro Forma form
                     // Wait for modal to render
@@ -8630,6 +8817,7 @@ try {
                     // 3. Mark active state
                     ui.invoice.activeId = null;
                     ui.invoice.sourcePfiId = null;
+                    ui.invoice.sourceQuotationId = quotationId;
 
                     // 4. Map Quotation fields to Invoice form
                     // Wait for modal to render
@@ -8721,7 +8909,9 @@ try {
                         metadata: {
                             items: [],
                             reason: document.getElementById('doc-reason')?.value || null,
-                            ref_invoice: document.getElementById('doc-ref-invoice')?.value || null
+                            ref_invoice: document.getElementById('doc-ref-invoice')?.value || null,
+                            vehicle_no: document.getElementById('doc-vehicle-no')?.value || null,
+                            transporter: document.getElementById('doc-transporter')?.value || null
                         }
                     };
 
@@ -8943,6 +9133,8 @@ try {
                         { label: 'Payment Terms:', value: doc.payment_terms || '-' },
                         { label: 'Delivery Time:', value: doc.delivery_time || '-' },
                         { label: 'Delivery Mode:', value: doc.delivery_mode || '-' },
+                        { label: 'Vehicle No:', value: doc.metadata?.vehicle_no || '-', hide: type !== 'challans' },
+                        { label: 'Transporter:', value: doc.metadata?.transporter || '-', hide: type !== 'challans' },
                         { label: 'Reason for Credit:', value: doc.metadata?.reason || '-', hide: type !== 'credit_notes' },
                         { label: 'Ref. Invoice No:', value: doc.metadata?.ref_invoice || '-', hide: type !== 'credit_notes' }
                     ].filter(d => !d.hide).map(d => {
@@ -9023,6 +9215,12 @@ try {
                         return st ? st.name : code;
                     };
 
+                    const custName = doc.customers?.name || 'Walk-in Customer';
+                    pdf.setFont('Poppins', 'bold');
+                    pdf.setFontSize(9);
+                    const splitName = pdf.splitTextToSize(custName, custBoxWidth - 12);
+
+                    // Left Address (Billing)
                     const billingLines = [
                         `${doc.customers?.billing_address1 || ''} ${doc.customers?.billing_address2 || ''}`.trim(),
                         `${doc.customers?.billing_city || ''}${doc.customers?.billing_pincode ? ' ' + doc.customers.billing_pincode : ''}${doc.customers?.state ? ', ' + getDisplayState(doc.customers.state) : ''}`.trim(),
@@ -9041,20 +9239,25 @@ try {
                         }
                     }
 
-                    let customerHeadHeight = 9;
+                    let customerHeadHeight = 5 + (splitName.length * 4.5);
                     if (contactLines.length > 0) customerHeadHeight += (contactLines.length * 4);
                     if (doc.customers?.gstin || doc.customers?.pan_no) customerHeadHeight += 4;
-                    const leftContentHeight = customerHeadHeight + 4 + (splitBill.length * 4);
+                    const leftContentHeight = customerHeadHeight + 6 + (splitBill.length * 4);
+
+                    // Right Address (Shipping)
+                    const shippingTitle = (doc.customers?.shipping_title || doc.customers?.name || '').trim();
+                    pdf.setFont('Poppins', 'bold');
+                    pdf.setFontSize(9);
+                    const splitShipTitle = pdf.splitTextToSize(shippingTitle, custBoxWidth - 12);
 
                     const shippingLines = [
-                        (doc.customers?.shipping_title || doc.customers?.name || '').trim(),
                         `${doc.customers?.shipping_address1 || ''} ${doc.customers?.shipping_address2 || ''}`.trim(),
                         `${doc.customers?.shipping_city || ''}${doc.customers?.shipping_pincode ? ' ' + doc.customers.shipping_pincode : ''}${doc.customers?.state ? ', ' + getDisplayState(doc.customers.state) : ''}`.trim(),
                         (doc.customers?.shipping_country || 'India').trim()
                     ].filter(line => line.length > 0);
                     const shippingAddr = shippingLines.join('\n');
                     const splitShip = pdf.splitTextToSize(shippingAddr, custBoxWidth - 10);
-                    const rightContentHeight = 9 + (splitShip.length * 4);
+                    const rightContentHeight = 6 + (splitShipTitle.length * 4.5) + (splitShip.length * 4);
 
                     const custBoxDynamicHeight = Math.max(leftContentHeight, rightContentHeight) + 1.5;
 
@@ -9062,17 +9265,19 @@ try {
                     pdf.rect(margin, y, custBoxWidth, custBoxDynamicHeight);
                     pdf.rect(margin + custBoxWidth, y, custBoxWidth, custBoxDynamicHeight);
 
-                    // Left Content
+                    // Left Content Rendering
                     pdf.setFontSize(7);
                     pdf.setFont('Poppins', 'bold');
                     pdf.text('Billing Address:', margin + 2, y + 4);
+                    
                     pdf.setFontSize(9);
-                    pdf.text(doc.customers?.name || 'Walk-in Customer', margin + 2, y + 9);
+                    pdf.text(splitName, margin + 2, y + 9);
+                    let currentCustY = y + 9 + (splitName.length * 4.5);
 
                     pdf.setFontSize(8);
                     pdf.setFont('Poppins', 'normal');
-                    pdf.text(splitBill, margin + 2, y + 13.5);
-                    let currentCustY = y + 13.5 + (splitBill.length * 4);
+                    pdf.text(splitBill, margin + 2, currentCustY);
+                    currentCustY += (splitBill.length * 4) + 1;
 
                     if (doc.customers?.gstin || doc.customers?.pan_no) {
                         pdf.setFontSize(7.5);
@@ -9090,13 +9295,18 @@ try {
                         pdf.text(contactLines, margin + 2, currentCustY + 1);
                     }
 
-                    // Right Content
+                    // Right Content Rendering
                     pdf.setFontSize(7);
                     pdf.setFont('Poppins', 'bold');
                     pdf.text('Shipping address:', margin + custBoxWidth + 2, y + 4);
+                    
+                    pdf.setFontSize(9);
+                    pdf.text(splitShipTitle, margin + custBoxWidth + 2, y + 9);
+                    let currentShipY = y + 9 + (splitShipTitle.length * 4.5);
+
                     pdf.setFontSize(8);
                     pdf.setFont('Poppins', 'normal');
-                    pdf.text(splitShip, margin + custBoxWidth + 2, y + 9);
+                    pdf.text(splitShip, margin + custBoxWidth + 2, currentShipY);
 
                     return custBoxDynamicHeight;
                 },
