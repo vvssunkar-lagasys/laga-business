@@ -1,0 +1,907 @@
+-- Drop table if exists to ensure clean slate
+drop table if exists public.customers;
+
+-- Create Customers Table
+create table public.customers (
+    id uuid not null default gen_random_uuid(),
+    created_at timestamp with time zone not null default now(),
+    user_id uuid null,
+    
+    -- Company Details
+    name text not null,
+    gstin text null,
+    email text null, -- Company email (if any)
+    
+    -- Primary Contact
+    contact_name text null,
+    contact_mobile text null,
+    contact_phone text null,
+    contact_email text null,
+    pan_no text null,
+    
+    -- Billing Address
+    billing_address1 text null,
+    billing_address2 text null,
+    billing_city text null,
+    billing_pincode text null,
+    state text null,        -- Billing State (mapped to 'state' in form)
+    billing_country text null,
+
+    -- Shipping Address
+    shipping_title text null,
+    shipping_address1 text null,
+    shipping_address2 text null,
+    shipping_city text null,
+    shipping_pincode text null,
+    shipping_state text null,
+    shipping_country text null,
+    
+    -- Additional Contacts (JSONB Array)
+    contacts jsonb default '[]'::jsonb,
+    
+    -- Constraints
+    constraint customers_pkey primary key (id)
+);
+
+-- Enable RLS
+alter table public.customers enable row level security;
+
+-- Create Policy
+create policy "Enable all access for authenticated users" on public.customers
+    as permissive for all
+    to authenticated
+    using (true)
+    with check (true);
+
+
+
+
+
+
+
+-- Create Products Table
+create table public.products (
+    id uuid not null default gen_random_uuid(),
+    created_at timestamp with time zone not null default now(),
+    user_id uuid null,
+    
+    name text not null,
+    hsn text null,
+    price numeric null default 0,
+    gst numeric null default 0,
+    type text null default 'PRODUCT', -- 'PRODUCT' or 'SERVICE'
+    currency text null default 'INR', -- 'INR' or 'USD'
+    is_deleted boolean default false, -- Soft delete flag
+    
+    constraint products_pkey primary key (id)
+);
+
+-- Enable RLS
+alter table public.products enable row level security;
+
+-- Create Policy
+create policy "Enable all access for authenticated users" on public.products
+    as permissive for all
+    to authenticated
+    using (true)
+    with check (true);
+
+
+
+-- Create Settings Table
+create table public.settings (
+    id uuid not null default gen_random_uuid(),
+    created_at timestamp with time zone not null default now(),
+    user_id uuid null,
+    
+    -- Basic Company Info
+    company_name text null,
+    company_email text null,
+    company_phone text null,
+    website text null,
+    
+    -- Registration Details
+    gstin text null,
+    pan_no text null,
+    msme_no text null,
+    
+    -- Address
+    address text null,
+    
+    -- Branding & Assets (Stored as Data URLs)
+    company_logo text null,
+    signature text null,
+    stamp text null,
+    
+    constraint settings_pkey primary key (id)
+);
+
+-- Enable RLS
+alter table public.settings enable row level security;
+
+-- Create Policy (Allow all authenticated users to read/upsert)
+create policy "Enable access for authenticated users" on public.settings
+    as permissive for all
+    to authenticated
+    using (true)
+    with check (true);
+
+
+
+    alter table public.settings add column updated_at timestamp with time zone;
+
+
+alter table public.settings 
+add column bank_inr_name text,
+add column bank_inr_acc_no text,
+add column bank_inr_branch text,
+add column bank_inr_ifsc text,
+add column bank_inr_swift text,
+add column bank_usd_name text,
+add column bank_usd_acc_no text,
+add column bank_usd_branch text,
+add column bank_usd_ifsc text,
+add column bank_usd_swift text;
+
+
+
+
+-- Create Quotations Table
+CREATE TABLE IF NOT EXISTS public.quotations (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    quotation_no TEXT NOT NULL UNIQUE,
+    date DATE NOT NULL,
+    customer_id UUID REFERENCES public.customers(id),
+    validity_date DATE,
+    payment_terms TEXT,
+    delivery_time TEXT,
+    delivery_mode TEXT,
+    reference TEXT,
+    subject TEXT,
+    type TEXT, -- Regular, Without GST, LUT / Export
+    status TEXT DEFAULT 'Open', -- Open, Draft, Closed
+    currency TEXT DEFAULT 'INR',
+    bank_id TEXT,
+    terms TEXT,
+    total_amount DECIMAL(15, 2) DEFAULT 0,
+    export_type TEXT,
+    country TEXT,
+    user_id UUID REFERENCES auth.users(id),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Create Quotation Items Table
+CREATE TABLE IF NOT EXISTS public.quotation_items (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    quotation_id UUID REFERENCES public.quotations(id) ON DELETE CASCADE,
+    product_id UUID REFERENCES public.products(id),
+    qty DECIMAL(15, 2) DEFAULT 1,
+    rate DECIMAL(15, 2) DEFAULT 0,
+    discount DECIMAL(15, 2) DEFAULT 0,
+    user_id UUID REFERENCES auth.users(id),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Enable RLS (Row Level Security) - Optional but recommended
+ALTER TABLE public.quotations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.quotation_items ENABLE ROW LEVEL SECURITY;
+
+-- Create policies (Basic: user can see/edit own data)
+CREATE POLICY "Users can manage their own quotations" ON public.quotations
+    FOR ALL USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can manage their own quotation items" ON public.quotation_items
+    FOR ALL USING (auth.uid() = user_id);
+
+
+
+
+-- Create Pro Forma Invoices Table
+CREATE TABLE IF NOT EXISTS public.proforma_invoices (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    doc_no TEXT NOT NULL UNIQUE,
+    date DATE NOT NULL,
+    customer_id UUID REFERENCES public.customers(id),
+    validity_date DATE,
+    payment_terms TEXT,
+    delivery_time TEXT,
+    delivery_mode TEXT,
+    purchase_no TEXT,
+    purchase_date DATE,
+    custom_fields JSONB DEFAULT '[]'::jsonb,
+    type TEXT, -- Regular, Without GST, LUT / Export
+    status TEXT DEFAULT 'Open', -- Open, Draft, Closed
+    currency TEXT DEFAULT 'INR',
+    bank_id TEXT,
+    terms TEXT,
+    total_amount DECIMAL(15, 2) DEFAULT 0,
+    user_id UUID REFERENCES auth.users(id),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Create Pro Forma Items Table
+CREATE TABLE IF NOT EXISTS public.proforma_items (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    proforma_id UUID REFERENCES public.proforma_invoices(id) ON DELETE CASCADE,
+    product_id UUID REFERENCES public.products(id),
+    qty DECIMAL(15, 2) DEFAULT 1,
+    rate DECIMAL(15, 2) DEFAULT 0,
+    discount DECIMAL(15, 2) DEFAULT 0,
+    user_id UUID REFERENCES auth.users(id),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Enable RLS
+ALTER TABLE public.proforma_invoices ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.proforma_items ENABLE ROW LEVEL SECURITY;
+
+-- Create Policies
+CREATE POLICY "Users can manage their own proforma invoices" ON public.proforma_invoices
+    FOR ALL USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can manage their own proforma items" ON public.proforma_items
+    FOR ALL USING (auth.uid() = user_id);
+
+ALTER TABLE public.proforma_items ADD COLUMN hsn_code TEXT;
+
+
+ALTER TABLE proforma_invoices 
+ADD COLUMN metadata JSONB DEFAULT '{}'::jsonb;
+
+
+-- Create Invoices Table (If not exists or update)
+CREATE TABLE IF NOT EXISTS public.invoices (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    invoice_no TEXT NOT NULL UNIQUE,
+    date DATE NOT NULL,
+    due_date DATE,
+    customer_id UUID REFERENCES public.customers(id),
+    type TEXT DEFAULT 'Regular', -- Regular, Without GST, LUT / Export
+    currency TEXT DEFAULT 'INR',
+    bank_id TEXT,
+    purchase_no TEXT,
+    purchase_date DATE,
+    payment_terms TEXT,
+    delivery_time TEXT,
+    delivery_mode TEXT,
+    notes TEXT,
+    custom_fields JSONB DEFAULT '[]'::jsonb,
+    subtotal DECIMAL(15, 2) DEFAULT 0,
+    total_amount DECIMAL(15, 2) DEFAULT 0,
+    status TEXT DEFAULT 'Pending', -- Pending, Paid, Cancelled, Draft
+    metadata JSONB DEFAULT '{}'::jsonb,
+    user_id UUID REFERENCES auth.users(id),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Create Invoice Items Table
+CREATE TABLE IF NOT EXISTS public.invoice_items (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    invoice_id UUID REFERENCES public.invoices(id) ON DELETE CASCADE,
+    product_id UUID REFERENCES public.products(id),
+    qty DECIMAL(15, 2) DEFAULT 1,
+    rate DECIMAL(15, 2) DEFAULT 0,
+    discount DECIMAL(15, 2) DEFAULT 0,
+    hsn_code TEXT,
+    user_id UUID REFERENCES auth.users(id),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Enable RLS
+ALTER TABLE public.invoices ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.invoice_items ENABLE ROW LEVEL SECURITY;
+
+-- Create Policies
+CREATE POLICY "Users can manage their own invoices" ON public.invoices
+    FOR ALL USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can manage their own invoice items" ON public.invoice_items
+    FOR ALL USING (auth.uid() = user_id);
+
+
+
+
+
+
+-- LaGa Business Suite - Database Schema
+-- Run this script in your Supabase SQL Editor
+
+-- =====================================================
+-- INVOICES TABLE
+-- =====================================================
+CREATE TABLE IF NOT EXISTS public.invoices (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    invoice_no TEXT NOT NULL UNIQUE,
+    date DATE NOT NULL,
+    due_date DATE,
+    customer_id UUID REFERENCES public.customers(id) ON DELETE SET NULL,
+    type TEXT NOT NULL DEFAULT 'Regular', -- 'Regular', 'LUT / Export', 'Without GST'
+    currency TEXT DEFAULT 'INR', -- 'INR', 'USD', 'EUR'
+    bank_id TEXT, -- 'inr', 'usd', etc.
+    purchase_no TEXT,
+    purchase_date DATE,
+    payment_terms TEXT,
+    delivery_time TEXT,
+    delivery_mode TEXT,
+    notes TEXT,
+    custom_fields JSONB DEFAULT '[]'::jsonb,
+    exchange_rate NUMERIC(10, 4) DEFAULT 1.0,
+    subtotal NUMERIC(12, 2) DEFAULT 0,
+    total_amount NUMERIC(12, 2) NOT NULL,
+    status TEXT DEFAULT 'Pending', -- 'Draft', 'Pending', 'Paid', 'Cancelled'
+    metadata JSONB DEFAULT '{}'::jsonb,
+    user_id UUID NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- =====================================================
+-- INVOICE ITEMS TABLE
+-- =====================================================
+CREATE TABLE IF NOT EXISTS public.invoice_items (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    invoice_id UUID NOT NULL REFERENCES public.invoices(id) ON DELETE CASCADE,
+    product_id UUID REFERENCES public.products(id) ON DELETE SET NULL,
+    hsn_code TEXT,
+    qty NUMERIC(10, 2) NOT NULL,
+    rate NUMERIC(12, 2) NOT NULL,
+    discount NUMERIC(5, 2) DEFAULT 0, -- Percentage
+    user_id UUID NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- =====================================================
+-- INDEXES FOR PERFORMANCE
+-- =====================================================
+CREATE INDEX IF NOT EXISTS idx_invoices_customer_id ON public.invoices(customer_id);
+CREATE INDEX IF NOT EXISTS idx_invoices_date ON public.invoices(date);
+CREATE INDEX IF NOT EXISTS idx_invoices_status ON public.invoices(status);
+CREATE INDEX IF NOT EXISTS idx_invoices_user_id ON public.invoices(user_id);
+CREATE INDEX IF NOT EXISTS idx_invoice_items_invoice_id ON public.invoice_items(invoice_id);
+CREATE INDEX IF NOT EXISTS idx_invoice_items_product_id ON public.invoice_items(product_id);
+
+-- =====================================================
+-- ROW LEVEL SECURITY (RLS) POLICIES
+-- =====================================================
+
+-- Enable RLS
+ALTER TABLE public.invoices ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.invoice_items ENABLE ROW LEVEL SECURITY;
+
+-- Invoices Policies
+CREATE POLICY "Users can view their own invoices"
+    ON public.invoices FOR SELECT
+    USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert their own invoices"
+    ON public.invoices FOR INSERT
+    WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update their own invoices"
+    ON public.invoices FOR UPDATE
+    USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete their own invoices"
+    ON public.invoices FOR DELETE
+    USING (auth.uid() = user_id);
+
+-- Invoice Items Policies
+CREATE POLICY "Users can view their own invoice items"
+    ON public.invoice_items FOR SELECT
+    USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert their own invoice items"
+    ON public.invoice_items FOR INSERT
+    WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update their own invoice items"
+    ON public.invoice_items FOR UPDATE
+    USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete their own invoice items"
+    ON public.invoice_items FOR DELETE
+    USING (auth.uid() = user_id);
+
+-- =====================================================
+-- UPDATED_AT TRIGGER
+-- =====================================================
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER update_invoices_updated_at
+    BEFORE UPDATE ON public.invoices
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- =====================================================
+-- UPDATES FOR EXCHANGE RATE
+-- =====================================================
+ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS exchange_rate NUMERIC(10, 4) DEFAULT 1.0;
+ALTER TABLE public.proforma_invoices ADD COLUMN IF NOT EXISTS exchange_rate NUMERIC(10, 4) DEFAULT 1.0;
+
+
+-- LICENSES TABLE
+-- =====================================================
+CREATE TABLE IF NOT EXISTS public.licenses (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    user_id UUID REFERENCES auth.users(id),
+    
+    customer_id UUID REFERENCES public.customers(id) ON DELETE CASCADE,
+    location TEXT,
+    contact_person TEXT,
+    
+    category TEXT, -- 'Academic', 'Government', 'Consultancy'
+    type TEXT, -- 'New', 'Renewal'
+    software_name TEXT,
+    serial_number TEXT UNIQUE,
+    activation_key TEXT,
+    
+    start_date DATE,
+    end_date DATE,
+    notes TEXT,
+    
+    previous_license_id UUID REFERENCES public.licenses(id) ON DELETE SET NULL,
+    
+    status TEXT DEFAULT 'Active'
+);
+
+-- Index for unique serial number
+CREATE INDEX IF NOT EXISTS idx_licenses_serial_number ON public.licenses(serial_number);
+CREATE INDEX IF NOT EXISTS idx_licenses_customer_id ON public.licenses(customer_id);
+CREATE INDEX IF NOT EXISTS idx_licenses_user_id ON public.licenses(user_id);
+
+-- Enable RLS
+ALTER TABLE public.licenses ENABLE ROW LEVEL SECURITY;
+
+-- Policies
+CREATE POLICY "Users can manage their own licenses"
+    ON public.licenses FOR ALL
+    USING (auth.uid() = user_id);
+
+
+
+
+-- =====================================================
+-- CREDIT NOTES TABLE
+-- =====================================================
+CREATE TABLE IF NOT EXISTS public.credit_notes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    credit_note_no TEXT NOT NULL UNIQUE,
+    doc_no TEXT, -- Alternate field for generic doc handling
+    date DATE NOT NULL,
+    customer_id UUID REFERENCES public.customers(id) ON DELETE SET NULL,
+    type TEXT DEFAULT 'Credit Note',
+    currency TEXT DEFAULT 'INR',
+    bank_id TEXT,
+    notes TEXT,
+    custom_fields JSONB DEFAULT '[]'::jsonb,
+    exchange_rate NUMERIC(10, 4) DEFAULT 1.0,
+    subtotal NUMERIC(12, 2) DEFAULT 0,
+    total_amount NUMERIC(12, 2) NOT NULL,
+    status TEXT DEFAULT 'Open', -- 'Open', 'Closed', 'Draft'
+    metadata JSONB DEFAULT '{}'::jsonb,
+    user_id UUID NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- =====================================================
+-- CREDIT NOTE ITEMS TABLE
+-- =====================================================
+CREATE TABLE IF NOT EXISTS public.credit_note_items (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    credit_note_id UUID NOT NULL REFERENCES public.credit_notes(id) ON DELETE CASCADE,
+    product_id UUID REFERENCES public.products(id) ON DELETE SET NULL,
+    hsn_code TEXT,
+    qty NUMERIC(10, 2) NOT NULL,
+    rate NUMERIC(12, 2) NOT NULL,
+    discount NUMERIC(5, 2) DEFAULT 0,
+    user_id UUID NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- =====================================================
+-- DEBIT NOTES TABLE
+-- =====================================================
+CREATE TABLE IF NOT EXISTS public.debit_notes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    debit_note_no TEXT NOT NULL UNIQUE,
+    doc_no TEXT, -- Alternate field for generic doc handling
+    date DATE NOT NULL,
+    customer_id UUID REFERENCES public.customers(id) ON DELETE SET NULL,
+    type TEXT DEFAULT 'Debit Note',
+    currency TEXT DEFAULT 'INR',
+    bank_id TEXT,
+    notes TEXT,
+    custom_fields JSONB DEFAULT '[]'::jsonb,
+    exchange_rate NUMERIC(10, 4) DEFAULT 1.0,
+    subtotal NUMERIC(12, 2) DEFAULT 0,
+    total_amount NUMERIC(12, 2) NOT NULL,
+    status TEXT DEFAULT 'Open', -- 'Open', 'Closed', 'Draft'
+    metadata JSONB DEFAULT '{}'::jsonb,
+    user_id UUID NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- =====================================================
+-- DEBIT NOTE ITEMS TABLE
+-- =====================================================
+CREATE TABLE IF NOT EXISTS public.debit_note_items (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    debit_note_id UUID NOT NULL REFERENCES public.debit_notes(id) ON DELETE CASCADE,
+    product_id UUID REFERENCES public.products(id) ON DELETE SET NULL,
+    hsn_code TEXT,
+    qty NUMERIC(10, 2) NOT NULL,
+    rate NUMERIC(12, 2) NOT NULL,
+    discount NUMERIC(5, 2) DEFAULT 0,
+    user_id UUID NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- =====================================================
+-- INDEXES FOR PERFORMANCE
+-- =====================================================
+CREATE INDEX IF NOT EXISTS idx_credit_notes_customer_id ON public.credit_notes(customer_id);
+CREATE INDEX IF NOT EXISTS idx_credit_notes_date ON public.credit_notes(date);
+CREATE INDEX IF NOT EXISTS idx_credit_notes_user_id ON public.credit_notes(user_id);
+CREATE INDEX IF NOT EXISTS idx_credit_note_items_cn_id ON public.credit_note_items(credit_note_id);
+
+CREATE INDEX IF NOT EXISTS idx_debit_notes_customer_id ON public.debit_notes(customer_id);
+CREATE INDEX IF NOT EXISTS idx_debit_notes_date ON public.debit_notes(date);
+CREATE INDEX IF NOT EXISTS idx_debit_notes_user_id ON public.debit_notes(user_id);
+CREATE INDEX IF NOT EXISTS idx_debit_note_items_dn_id ON public.debit_note_items(debit_note_id);
+
+-- =====================================================
+-- ROW LEVEL SECURITY (RLS) POLICIES
+-- =====================================================
+
+-- Enable RLS
+ALTER TABLE public.credit_notes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.credit_note_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.debit_notes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.debit_note_items ENABLE ROW LEVEL SECURITY;
+
+-- Credit Notes Policies
+CREATE POLICY "Users can manage their own credit notes" ON public.credit_notes
+    FOR ALL USING (auth.uid() = user_id);
+
+-- Credit Note Items Policies
+CREATE POLICY "Users can manage their own credit note items" ON public.credit_note_items
+    FOR ALL USING (auth.uid() = user_id);
+
+-- Debit Notes Policies
+CREATE POLICY "Users can manage their own debit notes" ON public.debit_notes
+    FOR ALL USING (auth.uid() = user_id);
+
+-- Debit Note Items Policies
+CREATE POLICY "Users can manage their own debit note items" ON public.debit_note_items
+    FOR ALL USING (auth.uid() = user_id);
+
+-- =====================================================
+-- UPDATED_AT TRIGGER
+-- =====================================================
+
+-- Use existing function update_updated_at_column
+
+CREATE TRIGGER update_credit_notes_updated_at
+    BEFORE UPDATE ON public.credit_notes
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_debit_notes_updated_at
+    BEFORE UPDATE ON public.debit_notes
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+
+-- =====================================================
+-- PURCHASE ORDERS TABLE
+-- =====================================================
+CREATE TABLE IF NOT EXISTS public.purchase_orders (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    po_no TEXT NOT NULL UNIQUE,
+    doc_no TEXT, -- Alternate field for generic doc handling
+    date DATE NOT NULL,
+    customer_id UUID REFERENCES public.customers(id) ON DELETE SET NULL,
+    type TEXT DEFAULT 'Purchase Order',
+    currency TEXT DEFAULT 'INR',
+    bank_id TEXT,
+    notes TEXT,
+    custom_fields JSONB DEFAULT '[]'::jsonb,
+    exchange_rate NUMERIC(10, 4) DEFAULT 1.0,
+    subtotal NUMERIC(12, 2) DEFAULT 0,
+    total_amount NUMERIC(12, 2) NOT NULL,
+    status TEXT DEFAULT 'Open', -- 'Open', 'Closed', 'Draft'
+    metadata JSONB DEFAULT '{}'::jsonb,
+    user_id UUID NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- =====================================================
+-- PURCHASE ORDER ITEMS TABLE
+-- =====================================================
+CREATE TABLE IF NOT EXISTS public.po_items (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    po_id UUID NOT NULL REFERENCES public.purchase_orders(id) ON DELETE CASCADE,
+    product_id UUID REFERENCES public.products(id) ON DELETE SET NULL,
+    hsn_code TEXT,
+    qty NUMERIC(10, 2) NOT NULL,
+    rate NUMERIC(12, 2) NOT NULL,
+    discount NUMERIC(5, 2) DEFAULT 0,
+    user_id UUID NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- =====================================================
+-- INDEXES FOR PERFORMANCE
+-- =====================================================
+CREATE INDEX IF NOT EXISTS idx_purchase_orders_customer_id ON public.purchase_orders(customer_id);
+CREATE INDEX IF NOT EXISTS idx_purchase_orders_date ON public.purchase_orders(date);
+CREATE INDEX IF NOT EXISTS idx_purchase_orders_user_id ON public.purchase_orders(user_id);
+CREATE INDEX IF NOT EXISTS idx_po_items_po_id ON public.po_items(po_id);
+
+-- =====================================================
+-- ROW LEVEL SECURITY (RLS) POLICIES
+-- =====================================================
+
+-- Enable RLS
+ALTER TABLE public.purchase_orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.po_items ENABLE ROW LEVEL SECURITY;
+
+-- Purchase Orders Policies
+CREATE POLICY "Users can manage their own purchase orders" ON public.purchase_orders
+    FOR ALL USING (auth.uid() = user_id);
+
+-- Purchase Order Items Policies
+CREATE POLICY "Users can manage their own po items" ON public.po_items
+    FOR ALL USING (auth.uid() = user_id);
+
+-- =====================================================
+-- UPDATED_AT TRIGGER
+-- =====================================================
+
+-- Use existing function update_updated_at_column
+
+CREATE TRIGGER update_purchase_orders_updated_at
+    BEFORE UPDATE ON public.purchase_orders
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+
+-- =====================================================
+-- DELIVERY CHALLANS TABLE
+-- =====================================================
+CREATE TABLE IF NOT EXISTS public.delivery_challans (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    doc_no TEXT NOT NULL UNIQUE, -- Using doc_no as primary ID to match app.js
+    date DATE NOT NULL,
+    customer_id UUID REFERENCES public.customers(id) ON DELETE SET NULL,
+    type TEXT DEFAULT 'Delivery Challan',
+    currency TEXT DEFAULT 'INR',
+    bank_id TEXT,
+    notes TEXT,
+    custom_fields JSONB DEFAULT '[]'::jsonb,
+    subtotal NUMERIC(12, 2) DEFAULT 0,
+    total_amount NUMERIC(12, 2) NOT NULL,
+    status TEXT DEFAULT 'Open',
+    metadata JSONB DEFAULT '{}'::jsonb,
+    user_id UUID NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- =====================================================
+-- CHALLAN ITEMS TABLE
+-- =====================================================
+CREATE TABLE IF NOT EXISTS public.challan_items (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    challan_id UUID NOT NULL REFERENCES public.delivery_challans(id) ON DELETE CASCADE,
+    product_id UUID REFERENCES public.products(id) ON DELETE SET NULL,
+    hsn_code TEXT,
+    qty NUMERIC(10, 2) NOT NULL,
+    rate NUMERIC(12, 2) NOT NULL,
+    discount NUMERIC(5, 2) DEFAULT 0,
+    user_id UUID NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- =====================================================
+-- INDEXES FOR CHALLANS
+-- =====================================================
+CREATE INDEX IF NOT EXISTS idx_delivery_challans_customer_id ON public.delivery_challans(customer_id);
+CREATE INDEX IF NOT EXISTS idx_delivery_challans_date ON public.delivery_challans(date);
+CREATE INDEX IF NOT EXISTS idx_delivery_challans_user_id ON public.delivery_challans(user_id);
+CREATE INDEX IF NOT EXISTS idx_challan_items_challan_id ON public.challan_items(challan_id);
+
+-- =====================================================
+-- RLS FOR CHALLANS
+-- =====================================================
+ALTER TABLE public.delivery_challans ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.challan_items ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can manage their own delivery challans" ON public.delivery_challans
+    FOR ALL USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can manage their own challan items" ON public.challan_items
+    FOR ALL USING (auth.uid() = user_id);
+
+-- =====================================================
+-- TRIGGER FOR CHALLANS
+-- =====================================================
+CREATE TRIGGER update_delivery_challans_updated_at
+    BEFORE UPDATE ON public.delivery_challans
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+
+-- =====================================================
+-- FIXES FOR CREDIT NOTES AND PURCHASE ORDERS
+-- Ensure they use 'doc_no' as the primary number column to match app.js
+-- =====================================================
+
+DO $$
+BEGIN
+    -- Fix Credit Notes: Ensure doc_no is the main column
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'credit_notes' AND column_name = 'credit_note_no') THEN
+        -- If doc_no also exists (as alternate), drop it first to avoid collision
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'credit_notes' AND column_name = 'doc_no') THEN
+            ALTER TABLE public.credit_notes DROP COLUMN doc_no;
+        END IF;
+        ALTER TABLE public.credit_notes RENAME COLUMN credit_note_no TO doc_no;
+    END IF;
+
+    -- Fix Purchase Orders: Ensure doc_no is the main column
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'purchase_orders' AND column_name = 'po_no') THEN
+        -- If doc_no also exists (as alternate), drop it first
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'purchase_orders' AND column_name = 'doc_no') THEN
+            ALTER TABLE public.purchase_orders DROP COLUMN doc_no;
+        END IF;
+        ALTER TABLE public.purchase_orders RENAME COLUMN po_no TO doc_no;
+    END IF;
+
+     -- Fix Debit Notes: Ensure doc_no is the main column (if created with debit_note_no)
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'debit_notes' AND column_name = 'debit_note_no') THEN
+        -- If doc_no also exists (as alternate), drop it first
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'debit_notes' AND column_name = 'doc_no') THEN
+            ALTER TABLE public.debit_notes DROP COLUMN doc_no;
+        END IF;
+        ALTER TABLE public.debit_notes RENAME COLUMN debit_note_no TO doc_no;
+    END IF;
+END $$;
+-- =====================================================
+-- PURCHASES TABLE
+-- =====================================================
+CREATE TABLE IF NOT EXISTS public.purchases (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    vendor_invoice_no TEXT NOT NULL,
+    date DATE NOT NULL,
+    vendor_id UUID REFERENCES public.customers(id) ON DELETE SET NULL,
+    subtotal NUMERIC(12, 2) DEFAULT 0,
+    tax_amount NUMERIC(12, 2) DEFAULT 0,
+    total_amount NUMERIC(12, 2) NOT NULL,
+    mode TEXT DEFAULT 'Online', -- From UI template: p.mode || 'Online'
+    status TEXT DEFAULT 'Pending', -- From UI template: p.status || 'Pending'
+    user_id UUID NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- =====================================================
+-- PURCHASE ITEMS TABLE
+-- =====================================================
+CREATE TABLE IF NOT EXISTS public.purchase_items (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    purchase_id UUID NOT NULL REFERENCES public.purchases(id) ON DELETE CASCADE,
+    product_id UUID REFERENCES public.products(id) ON DELETE SET NULL,
+    qty NUMERIC(10, 2) NOT NULL,
+    rate NUMERIC(12, 2) NOT NULL,
+    user_id UUID NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- =====================================================
+-- INDEXES FOR PERFORMANCE
+-- =====================================================
+CREATE INDEX IF NOT EXISTS idx_purchases_vendor_id ON public.purchases(vendor_id);
+CREATE INDEX IF NOT EXISTS idx_purchases_date ON public.purchases(date);
+CREATE INDEX IF NOT EXISTS idx_purchases_user_id ON public.purchases(user_id);
+CREATE INDEX IF NOT EXISTS idx_purchase_items_purchase_id ON public.purchase_items(purchase_id);
+
+-- =====================================================
+-- UPDATED_AT TRIGGER
+-- =====================================================
+CREATE TRIGGER update_purchases_updated_at
+    BEFORE UPDATE ON public.purchases
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+
+
+
+
+-- =====================================================
+-- PURCHASES TABLE
+-- =====================================================
+CREATE TABLE IF NOT EXISTS public.purchases (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    vendor_invoice_no TEXT NOT NULL,
+    date DATE NOT NULL,
+    vendor_id UUID REFERENCES public.customers(id) ON DELETE SET NULL,
+    subtotal NUMERIC(12, 2) DEFAULT 0,
+    tax_amount NUMERIC(12, 2) DEFAULT 0,
+    total_amount NUMERIC(12, 2) NOT NULL,
+    mode TEXT DEFAULT 'Online', -- From UI template: p.mode || 'Online'
+    status TEXT DEFAULT 'Pending', -- From UI template: p.status || 'Pending'
+    user_id UUID NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- =====================================================
+-- PURCHASE ITEMS TABLE
+-- =====================================================
+CREATE TABLE IF NOT EXISTS public.purchase_items (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    purchase_id UUID NOT NULL REFERENCES public.purchases(id) ON DELETE CASCADE,
+    product_id UUID REFERENCES public.products(id) ON DELETE SET NULL,
+    qty NUMERIC(10, 2) NOT NULL,
+    rate NUMERIC(12, 2) NOT NULL,
+    user_id UUID NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- =====================================================
+-- INDEXES FOR PERFORMANCE
+-- =====================================================
+CREATE INDEX IF NOT EXISTS idx_purchases_vendor_id ON public.purchases(vendor_id);
+CREATE INDEX IF NOT EXISTS idx_purchases_date ON public.purchases(date);
+CREATE INDEX IF NOT EXISTS idx_purchases_user_id ON public.purchases(user_id);
+CREATE INDEX IF NOT EXISTS idx_purchase_items_purchase_id ON public.purchase_items(purchase_id);
+
+-- =====================================================
+-- UPDATED_AT TRIGGER
+-- =====================================================
+CREATE TRIGGER update_purchases_updated_at
+    BEFORE UPDATE ON public.purchases
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- =====================================================
+-- SALES PERSONS TABLE
+-- =====================================================
+CREATE TABLE IF NOT EXISTS public.sales_persons (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    user_id UUID REFERENCES auth.users(id),
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Enable RLS
+ALTER TABLE public.sales_persons ENABLE ROW LEVEL SECURITY;
+
+-- Policies
+CREATE POLICY "Users can manage their own sales persons" ON public.sales_persons
+    FOR ALL USING (auth.uid() = user_id);
+
+-- Add column to Quotations
+ALTER TABLE public.quotations ADD COLUMN IF NOT EXISTS sales_person_id UUID REFERENCES public.sales_persons(id) ON DELETE SET NULL;
+
+-- Add column to Proforma Invoices
+ALTER TABLE public.proforma_invoices ADD COLUMN IF NOT EXISTS sales_person_id UUID REFERENCES public.sales_persons(id) ON DELETE SET NULL;
+
+-- Add column to Invoices
+ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS sales_person_id UUID REFERENCES public.sales_persons(id) ON DELETE SET NULL;

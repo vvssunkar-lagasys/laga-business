@@ -81,7 +81,8 @@ try {
         reports: {
             sales: { taxable: 0, tax: 0 },
             purchases: { taxable: 0, tax: 0 }
-        }
+        },
+        sales_persons: []
     };
 
     // --- DOM Elements ---
@@ -109,19 +110,19 @@ try {
         // 2. Initialize Supabase
         try {
             if (!window.supabase) {
-                console.error('❌ Supabase SDK missing on window');
+                console.error('âŒ Supabase SDK missing on window');
                 if (el.statusText) el.statusText.textContent = 'Error: Supabase SDK Missing';
                 return;
             }
 
             supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-            console.log('⚡ Client Created, verifying session...');
+            console.log('âš¡ Client Created, verifying session...');
 
             // Critical test: can we talk to the API?
             const { data, error } = await supabaseClient.auth.getSession();
             if (error) throw error;
 
-            console.log('✅ Supabase Ready & Verified');
+            console.log('âœ… Supabase Ready & Verified');
             if (el.statusText) el.statusText.textContent = 'System Fully Online (Supabase Ready)';
         } catch (err) {
             console.error('Supabase Init Error:', err);
@@ -162,7 +163,7 @@ try {
     const setupGlobalListeners = () => {
         el.loginForm?.addEventListener('submit', handleLogin);
         document.getElementById('logout-btn')?.addEventListener('click', handleLogout);
-        
+
         // Sidebar Toggle
         document.getElementById('sidebar-toggle')?.addEventListener('click', () => {
             el.mainRoot.classList.toggle('sidebar-collapsed');
@@ -506,11 +507,7 @@ try {
         },
         Customers: (items) => `
         <div class="animate-fade-in">
-            <div class="dashboard-header">
-                <div class="dashboard-title">
-                    <h2 class="text-2xl font-bold">Customers</h2>
-                </div>
-            </div>
+
 
             <div class="status-tabs">
                 <div class="tab-item active">All Customers <span class="tab-count">${items.length}</span></div>
@@ -591,7 +588,7 @@ try {
                                         </div>
                                         <div class="fin-chip ${outstanding > 0 ? 'outstanding' : 'neutral'}" title="${outstanding > 0 ? 'Outstanding Balance' : 'Full Settled'}">
                                             <span class="fin-label">${outstanding > 0 ? 'Due' : 'Cleared'}</span>
-                                            <span class="fin-amount">${outstanding > 0 ? '₹' + outstanding.toLocaleString('en-IN', { maximumFractionDigits: 0 }) : '—'}</span>
+                                            <span class="fin-amount">${outstanding > 0 ? '₹' + outstanding.toLocaleString('en-IN', { maximumFractionDigits: 0 }) : '"”'}</span>
                                         </div>
                                     </div>
                                 </td>
@@ -667,9 +664,7 @@ try {
             return `
                 <div class="animate-fade-in">
                     <div class="dashboard-header">
-                        <div class="dashboard-title">
-                            <h2>Tax Invoices</h2>
-                        </div>
+                        <div></div>
                         <div class="flex items-center gap-4">
                             <button onclick="ui.invoice.activeId = null; ui.modal.open('invoice')" class="bg-[#3b82f6] text-white px-6 py-2.5 rounded-xl font-bold hover:bg-blue-600 transition-all shadow-lg shadow-blue-200 active:scale-95 flex items-center gap-2">
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
@@ -700,9 +695,18 @@ try {
                     ${ui.sales.searchQuery ? `<svg class="clear-search-icon" onclick="ui.sales.search('')" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>` : ''}
                 </div>
 
+                        <!-- Salesperson Filter -->
+                        <div class="flex items-center gap-2">
+                            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Sales Person:</label>
+                            <select class="form-input text-[10px] font-bold py-1.5 min-w-[150px] bg-white border-slate-200 rounded-lg shadow-sm focus:ring-2 focus:ring-slate-900/5 transition-all" onchange="ui.sales.setSalesPersonFilter(this.value)">
+                                <option value="">All Salespersons</option>
+                                ${state.sales_persons.map(s => `<option value="${s.id}" ${ui.sales.salesPersonId === s.id ? 'selected' : ''}>${s.name}</option>`).join('')}
+                            </select>
+                        </div>
+
                         <!-- Premium Currency Stats -->
                         <div class="flex items-center gap-5 px-5 py-2.5 bg-white/60 backdrop-blur-md border border-slate-100 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-                            ${Object.entries(totals).filter(([k,v]) => ['INR','USD','EUR'].includes(k) && v.total > 0).map(([code, data], idx, arr) => `
+                            ${Object.entries(totals).filter(([k, v]) => ['INR', 'USD', 'EUR'].includes(k) && v.total > 0).map(([code, data], idx, arr) => `
                                 <div class="flex items-center gap-3">
                                     <div class="w-10 h-10 rounded-xl flex items-center justify-center text-lg font-bold ${code === 'INR' ? 'bg-slate-900 text-white' : code === 'USD' ? 'bg-blue-600 text-white' : 'bg-indigo-600 text-white'}">
                                         ${code === 'INR' ? '₹' : code === 'USD' ? '$' : '€'}
@@ -750,6 +754,7 @@ try {
                                     <th>Invoice #</th>
                                     <th>Date</th>
                                     <th>Customer</th>
+                                    <th>Salesperson</th>
                                     <th>Type</th>
                                     <th class="text-right">Amount</th>
                                     <th>Status</th>
@@ -777,6 +782,9 @@ try {
                                             </div>
                                         </td>
                                         <td>
+                                            <div class="text-xs font-bold text-slate-600">${state.sales_persons.find(s => s.id === inv.metadata?.sales_person_id)?.name || '-'}</div>
+                                        </td>
+                                        <td>
                                             <span class="px-2 py-0.5 rounded text-[10px] font-bold ${inv.type === 'LUT / Export' ? 'bg-orange-50 text-orange-700 border border-orange-100' : 'bg-blue-50 text-blue-700 border border-blue-100'}">
                                                 ${inv.type || 'Regular'}
                                             </span>
@@ -790,13 +798,13 @@ try {
                                         <td>
                                             <div class="flex items-center gap-2">
                                                 <span class="px-3 py-1 rounded-full text-[10px] font-bold border ${(() => {
-                            const s = (inv.status || 'Pending').toLowerCase();
-                            if (s === 'paid') return 'bg-emerald-50 text-emerald-700 border-emerald-100';
-                            if (s === 'cancelled') return 'bg-rose-50 text-rose-700 border-rose-100';
-                            if (s === 'draft') return 'bg-slate-50 text-slate-600 border-slate-200';
-                            if (s === 'closed') return 'bg-indigo-50 text-indigo-700 border-indigo-100';
-                            return 'bg-amber-50 text-amber-700 border-amber-100'; // Pending
-                        })()}">
+                        const s = (inv.status || 'Pending').toLowerCase();
+                        if (s === 'paid') return 'bg-emerald-50 text-emerald-700 border-emerald-100';
+                        if (s === 'cancelled') return 'bg-rose-50 text-rose-700 border-rose-100';
+                        if (s === 'draft') return 'bg-slate-50 text-slate-600 border-slate-200';
+                        if (s === 'closed') return 'bg-indigo-50 text-indigo-700 border-indigo-100';
+                        return 'bg-amber-50 text-amber-700 border-amber-100'; // Pending
+                    })()}">
                                                     ${inv.status || 'Pending'}
                                                 </span>
                                                 ${isOverdue ? `
@@ -869,9 +877,7 @@ try {
             return `
                 <div class="animate-fade-in">
                     <div class="dashboard-header">
-                        <div class="dashboard-title">
-                            <h2>Purchases</h2>
-                        </div>
+                        <div></div>
                         <div class="flex items-center gap-4">
                             <button class="flex items-center gap-2 text-slate-600 font-medium text-sm">
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
@@ -972,14 +978,14 @@ try {
             const searchQuery = (ui.challans.searchQuery || '').toLowerCase();
             const itemsFY = challans.filter(i => isWithinFY(i.date, state.fy));
 
-            let filtered = filter === 'All' ? itemsFY : itemsFY.filter(i => 
-                (filter === 'Drafts' && i.status === 'Draft') || 
+            let filtered = filter === 'All' ? itemsFY : itemsFY.filter(i =>
+                (filter === 'Drafts' && i.status === 'Draft') ||
                 (filter === 'Delivered' && i.status === 'Delivered') ||
                 i.status === filter
             );
 
             if (searchQuery) {
-                filtered = filtered.filter(i => 
+                filtered = filtered.filter(i =>
                     (i.doc_no || '').toLowerCase().includes(searchQuery) ||
                     (i.customers?.name || '').toLowerCase().includes(searchQuery) ||
                     (i.customers?.city || '').toLowerCase().includes(searchQuery)
@@ -989,10 +995,7 @@ try {
             return `
                 <div class="animate-in fade-in slide-in-from-bottom-4 duration-500">
                     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-                        <div>
-                            <h1 class="text-3xl font-bold text-slate-900 tracking-tight">Delivery Challans</h1>
-                            <p class="text-slate-500 mt-1 font-medium">Manage and track your delivery documents</p>
-                        </div>
+                        <div></div>
                         <div class="flex items-center gap-3">
                             <button onclick="ui.modal.open('challans')" class="flex items-center gap-2 px-5 py-2.5 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-all shadow-lg shadow-slate-200 active:scale-95">
                                 <i class="ri-add-line text-lg"></i>
@@ -1050,15 +1053,15 @@ try {
                                             </td>
                                         </tr>
                                     ` : filtered.map(item => {
-                                        const status = item.status || 'Draft';
-                                        const statusColors = {
-                                            'Delivered': 'bg-emerald-50 text-emerald-600 border-emerald-100',
-                                            'Draft': 'bg-slate-50 text-slate-500 border-slate-100',
-                                            'Open': 'bg-blue-50 text-blue-600 border-blue-100'
-                                        };
-                                        const colorClass = statusColors[status] || 'bg-slate-50 text-slate-600 border-slate-100';
+                const status = item.status || 'Draft';
+                const statusColors = {
+                    'Delivered': 'bg-emerald-50 text-emerald-600 border-emerald-100',
+                    'Draft': 'bg-slate-50 text-slate-500 border-slate-100',
+                    'Open': 'bg-blue-50 text-blue-600 border-blue-100'
+                };
+                const colorClass = statusColors[status] || 'bg-slate-50 text-slate-600 border-slate-100';
 
-                                        return `
+                return `
                                             <tr class="hover:bg-slate-50/50 transition-colors group">
                                                 <td class="px-6 py-4">
                                                     <div class="flex flex-col">
@@ -1094,7 +1097,7 @@ try {
                                                 </td>
                                             </tr>
                                         `;
-                                    }).join('')}
+            }).join('')}
                                 </tbody>
                             </table>
                         </div>
@@ -1144,9 +1147,7 @@ try {
             return `
                 <div class="animate-fade-in">
                     <div class="dashboard-header">
-                        <div class="dashboard-title">
-                            <h2>Pro Forma Invoices</h2>
-                        </div>
+                        <div></div>
                         
                         <div class="flex items-center gap-6">
                             <button onclick="ui.proforma_v2.activeId = null; ui.modal.open('proforma-new')" class="bg-[#3b82f6] text-white px-6 py-2.5 rounded-xl font-bold hover:bg-blue-600 transition-all shadow-lg shadow-blue-200 active:scale-95 flex items-center gap-2">
@@ -1170,6 +1171,15 @@ try {
                             <input type="text" class="form-input search-input" placeholder="Search by transaction, customers, inv etc.." value="${ui.proforma.searchQuery || ''}" oninput="ui.proforma.search(this.value)">
                     ${ui.proforma.searchQuery ? `<svg class="clear-search-icon" onclick="ui.proforma.search('')" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>` : ''}
                 </div>
+
+                        <!-- Salesperson Filter -->
+                        <div class="flex items-center gap-2">
+                            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Sales Person:</label>
+                            <select class="form-input text-[10px] font-bold py-1.5 min-w-[150px] bg-white border-slate-200 rounded-lg shadow-sm focus:ring-2 focus:ring-slate-900/5 transition-all" onchange="ui.proforma.setSalesPersonFilter(this.value)">
+                                <option value="">All Salespersons</option>
+                                ${state.sales_persons.map(s => `<option value="${s.id}" ${ui.proforma.salesPersonId === s.id ? 'selected' : ''}>${s.name}</option>`).join('')}
+                            </select>
+                        </div>
 
                         <!-- Currency Stats Section -->
                         <div class="flex items-center gap-4 bg-white border border-slate-100 px-4 py-1.5 rounded-xl shadow-sm">
@@ -1226,6 +1236,7 @@ try {
                                 <tr>
                                     <th>PFI #</th>
                                     <th>Customer</th>
+                                    <th>Salesperson</th>
                                     <th>PO / Contract</th>
                                     <th>Type</th>
                                     <th class="text-right">Amount</th>
@@ -1247,6 +1258,9 @@ try {
                                         <td>
                                             <div class="font-bold text-slate-900">${q.customers?.name || 'Walk-in Customer'}</div>
                                             <div class="text-[10px] text-slate-400 font-medium">${q.customers?.city || ''}</div>
+                                        </td>
+                                        <td>
+                                            <div class="text-xs font-bold text-slate-600">${state.sales_persons.find(s => s.id === q.metadata?.sales_person_id)?.name || '-'}</div>
                                         </td>
                                         <td>
                                             <div class="text-xs font-bold text-slate-600">${q.metadata?.purchase_no || '-'}</div>
@@ -1311,7 +1325,7 @@ try {
                                 `;
             }).join('') : `
                                     <tr>
-                                        <td colspan="9">
+                                        <td colspan="10">
                                             <div class="empty-state">
                                                 <div class="empty-state-icon">Oops 😳 !</div>
                                                 <h3>No pro forma invoices found.</h3>
@@ -1373,9 +1387,7 @@ try {
             return `
                 <div class="animate-fade-in">
                     <div class="dashboard-header">
-                        <div class="dashboard-title">
-                            <h2>Quotations</h2>
-                        </div>
+                        <div></div>
                         <div class="flex items-center gap-4">
 
                             <button onclick="ui.quotation_v2.activeId = null; ui.quotation_v2.activeStatus = null; ui.modal.open('quotation-new')" class="bg-[#3b82f6] text-white px-6 py-2 rounded-lg font-bold hover:bg-blue-600 transition-all">+ Create Quotation</button>
@@ -1396,6 +1408,16 @@ try {
                             <input type="text" class="form-input search-input" placeholder="Search by transaction, customers, invoice etc.." value="${ui.quotations.searchQuery || ''}" oninput="ui.quotations.search(this.value)">
                     ${ui.quotations.searchQuery ? `<svg class="clear-search-icon" onclick="ui.quotations.search('')" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>` : ''}
                 </div>
+                        
+                        <!-- Salesperson Filter -->
+                        <div class="flex items-center gap-2 ml-4">
+                            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Sales Person:</label>
+                            <select class="form-input text-[10px] font-bold py-1.5 min-w-[150px] bg-white border-slate-200 rounded-lg shadow-sm focus:ring-2 focus:ring-slate-900/5 transition-all" onchange="ui.quotations.setSalesPersonFilter(this.value)">
+                                <option value="">All Salespersons</option>
+                                ${state.sales_persons.map(s => `<option value="${s.id}" ${ui.quotations.salesPersonId === s.id ? 'selected' : ''}>${s.name}</option>`).join('')}
+                            </select>
+                        </div>
+
                         <div class="flex items-center gap-2 ml-4">
                             ${currencyBadges}
                         </div>
@@ -1409,6 +1431,7 @@ try {
                                     <th class="p-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider w-48">Quotation & Subject</th>
                                     <th class="p-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Type</th>
                                     <th class="p-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Customer Details</th>
+                                    <th class="p-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Salesperson</th>
                                     <th class="p-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Timeline</th>
                                     <th class="p-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-right">Value</th>
                                     <th class="p-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-center">Status</th>
@@ -1439,6 +1462,9 @@ try {
                                                 <span class="w-1 h-1 bg-slate-200 rounded-full"></span>
                                                 <span class="text-[10px] text-slate-400">${q.customers?.phone || ''}</span>
                                             </div>
+                                        </td>
+                                        <td class="p-4 text-slate-500 font-medium text-[10px]">
+                                            ${state.sales_persons.find(s => s.id === q.metadata?.sales_person_id)?.name || '-'}
                                         </td>
                                         <td class="p-4">
                                             <div class="flex flex-col gap-1">
@@ -1576,7 +1602,7 @@ try {
                                 </div>
                                 <div class="text-right">
                                     <p class="text-sm font-black text-slate-900">₹${data.sales.b2b.toLocaleString()}</p>
-                                    <p class="text-[10px] text-emerald-500 font-bold">Details →</p>
+                                    <p class="text-[10px] text-emerald-500 font-bold">Details â†’</p>
                                 </div>
                             </div>
                             
@@ -1584,7 +1610,7 @@ try {
                                 <div class="p-4 bg-white border border-slate-100 rounded-2xl hover:shadow-md transition-all cursor-pointer group" onclick="ui.reports.openModal('b2cs')">
                                     <div class="flex justify-between items-start mb-2">
                                         <div class="w-8 h-8 bg-orange-50 text-orange-600 rounded-lg flex items-center justify-center font-black text-[10px]">B2CS</div>
-                                        <span class="text-[10px] text-orange-500 font-bold">Small →</span>
+                                        <span class="text-[10px] text-orange-500 font-bold">Small â†’</span>
                                     </div>
                                     <p class="text-[9px] text-slate-400 font-bold uppercase tracking-tighter">B2C Small</p>
                                     <p class="text-sm font-black text-slate-900">₹${data.sales.b2cs.toLocaleString()}</p>
@@ -1592,7 +1618,7 @@ try {
                                 <div class="p-4 bg-white border border-slate-100 rounded-2xl hover:shadow-md transition-all cursor-pointer group" onclick="ui.reports.openModal('b2cl')">
                                     <div class="flex justify-between items-start mb-2">
                                         <div class="w-8 h-8 bg-pink-50 text-pink-600 rounded-lg flex items-center justify-center font-black text-[10px]">B2CL</div>
-                                        <span class="text-[10px] text-pink-500 font-bold">Large →</span>
+                                        <span class="text-[10px] text-pink-500 font-bold">Large â†’</span>
                                     </div>
                                     <p class="text-[9px] text-slate-400 font-bold uppercase tracking-tighter">B2C Large (>2.5L)</p>
                                     <p class="text-sm font-black text-slate-900">₹${data.sales.b2cl.toLocaleString()}</p>
@@ -1609,7 +1635,7 @@ try {
                                 </div>
                                 <div class="text-right">
                                     <p class="text-sm font-black text-slate-900">₹${data.sales.exp.toLocaleString()}</p>
-                                    <p class="text-[10px] text-purple-500 font-bold">Details →</p>
+                                    <p class="text-[10px] text-purple-500 font-bold">Details â†’</p>
                                 </div>
                             </div>
                         </div>
@@ -1830,7 +1856,7 @@ try {
                     </div>
                     <table class="w-full text-left">
                         <thead class="bg-slate-50/80 text-[10px] uppercase font-bold text-slate-400">
-                            <tr><th class="p-4">Doc #</th><th class="p-4">Date</th><th class="p-4">Customer</th><th class="p-4 text-right">Total</th><th class="p-4 text-center">Actions</th></tr>
+                            <tr><th class="p-4">Doc #</th><th class="p-4">Date</th><th class="p-4">Customer</th><th class="p-4">Salesperson</th><th class="p-4 text-right">Total</th><th class="p-4 text-center">Actions</th></tr>
                         </thead>
                         <tbody class="text-sm divide-y divide-slate-50">
                             ${items.length ? items.map(doc => `
@@ -1838,6 +1864,7 @@ try {
                                     <td class="p-4 font-mono font-bold text-${config.color}-600">${doc.doc_no || doc.quotation_no || doc.order_no}</td>
                                     <td class="p-4">${formatDate(doc.date)}</td>
                                     <td class="p-4 text-slate-700 font-medium">${doc.customers?.name || 'Walk-in Customer'}</td>
+                                    <td class="p-4 text-slate-500 font-medium text-xs">${state.sales_persons.find(s => s.id === doc.metadata?.sales_person_id)?.name || '-'}</td>
                                     <td class="p-4 text-right font-bold text-slate-900">₹${doc.total_amount.toLocaleString()}</td>
                                     <td class="p-4 text-center">
                                         <button onclick="api.docs.generatePDF('${type}', '${doc.id}')" class="text-blue-500 hover:text-blue-700 mx-1 text-xs font-bold uppercase tracking-tighter">View</button>
@@ -2133,6 +2160,36 @@ try {
                         </button>
                     </div>
                 </form>
+
+                <!-- Designated Salespersons -->
+                <div class="mt-12 space-y-6">
+                    <h3 class="text-sm font-bold text-slate-900 border-b border-slate-100 pb-2 uppercase tracking-wider flex items-center justify-between">
+                        Designated Salespersons
+                        <button onclick="ui.modal.open('sales-person')" class="text-xs font-bold text-blue-600 hover:text-blue-700">+ Add Salesperson</button>
+                    </h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        ${state.sales_persons && state.sales_persons.length > 0 ? state.sales_persons.map(sp => `
+                            <div class="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex items-center justify-between group">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs" style="${ui.utils.getAvatarStyle(sp.name)}">
+                                        ${sp.name.charAt(0)}
+                                    </div>
+                                    <div>
+                                        <p class="text-xs font-bold text-slate-900">${sp.name}</p>
+                                        <p class="text-[10px] text-slate-400 font-medium">${sp.email || 'No email'}</p>
+                                    </div>
+                                </div>
+                                <button onclick="api.masters.deleteSalesPerson('${sp.id}')" class="p-1.5 text-slate-300 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                </button>
+                            </div>
+                        `).join('') : `
+                            <div class="col-span-full py-8 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                                <p class="text-xs font-medium text-slate-400">No salespersons added yet.</p>
+                            </div>
+                        `}
+                    </div>
+                </div>
             </div>
         </div>
         `,
@@ -2483,12 +2540,42 @@ try {
                 settings: 'System Settings'
             };
             el.viewTitle.textContent = titles[state.view] || 'License Management';
+            
+            // Update Top Branding
+            const logoImg = document.getElementById('top-nav-logo');
+            const logoPlaceholder = document.getElementById('top-nav-logo-placeholder');
+            const companyNameLabel = document.getElementById('top-nav-company-name');
+            
+            if (state.settings) {
+                if (state.settings.company_logo) {
+                    if (logoImg) {
+                        logoImg.src = state.settings.company_logo;
+                        logoImg.classList.remove('hidden');
+                    }
+                    if (logoPlaceholder) logoPlaceholder.classList.add('hidden');
+                } else {
+                    if (logoImg) logoImg.classList.add('hidden');
+                    if (logoPlaceholder) logoPlaceholder.classList.remove('hidden');
+                }
+                
+                if (companyNameLabel && state.settings.company_name) {
+                    companyNameLabel.textContent = state.settings.company_name.replace(/^(M\/s\s*|M\/S\s*)/i, '');
+                }
+            }
 
-            document.querySelectorAll('.nav-link').forEach(link => {
+            // Clear all active classes
+            document.querySelectorAll('.top-nav-link').forEach(link => {
+                link.classList.remove('active');
+            });
+            // Set current and parent active
+            document.querySelectorAll('.top-nav-link').forEach(link => {
                 if (link.getAttribute('href') === '#' + state.view) {
                     link.classList.add('active');
-                } else {
-                    link.classList.remove('active');
+                    const parentMenu = link.closest('.top-dropdown-menu');
+                    if (parentMenu) {
+                        const trigger = parentMenu.previousElementSibling;
+                        if (trigger) trigger.classList.add('active');
+                    }
                 }
             });
 
@@ -2520,7 +2607,11 @@ try {
                     el.viewContainer.innerHTML = Templates.Customers(customers);
                     break;
                 case 'invoices':
-                    el.viewContainer.innerHTML = Templates.Invoices(state.invoices, ui.sales.filter);
+                    let invoices = state.invoices;
+                    if (ui.sales.salesPersonId) {
+                        invoices = invoices.filter(inv => inv.metadata?.sales_person_id === ui.sales.salesPersonId);
+                    }
+                    el.viewContainer.innerHTML = Templates.Invoices(invoices, ui.sales.filter);
                     break;
                 case 'credit_notes':
                     el.viewContainer.innerHTML = Templates.CreditNotes(state.credit_notes);
@@ -2532,10 +2623,18 @@ try {
                     el.viewContainer.innerHTML = Templates.DocList('debit_notes', state.debit_notes);
                     break;
                 case 'quotations':
-                    el.viewContainer.innerHTML = Templates.Quotations(state.quotations, ui.quotations.filter);
+                    let quotations = state.quotations;
+                    if (ui.quotations.salesPersonId) {
+                        quotations = quotations.filter(q => q.metadata?.sales_person_id === ui.quotations.salesPersonId);
+                    }
+                    el.viewContainer.innerHTML = Templates.Quotations(quotations, ui.quotations.filter);
                     break;
                 case 'proforma':
-                    el.viewContainer.innerHTML = Templates.ProForma(state.proforma, ui.proforma.filter);
+                    let proforma = state.proforma;
+                    if (ui.proforma.salesPersonId) {
+                        proforma = proforma.filter(p => p.metadata?.sales_person_id === ui.proforma.salesPersonId);
+                    }
+                    el.viewContainer.innerHTML = Templates.ProForma(proforma, ui.proforma.filter);
                     break;
                 case 'reports':
                     el.viewContainer.innerHTML = Templates.Reports(state.reports);
@@ -2561,7 +2660,7 @@ try {
             if (el.viewContainer) {
                 el.viewContainer.innerHTML = `
                 <div class="p-12 text-center text-red-500 bg-red-50 rounded-2xl border border-red-100 m-6">
-                    <div class="text-3xl mb-4">⚠️</div>
+                    <div class="text-3xl mb-4">⚠️</div>
                     <h3 class="font-bold">System Display Error</h3>
                     <p class="text-sm opacity-75 mt-2">${err.message}</p>
                     <button onclick="location.reload()" class="mt-6 bg-red-600 text-white px-6 py-2 rounded-lg text-sm font-bold">Refresh Application</button>
@@ -2810,7 +2909,7 @@ try {
                         <label class="cf-label">Designation</label>
                         <input type="text" name="extra_contact_role_${id}" class="form-input" placeholder="Role">
                     </div>
-                    <button type="button" onclick="ui.customer.removeContact('${id}')" class="cf-remove-contact" title="Remove person">×</button>
+                    <button type="button" onclick="ui.customer.removeContact('${id}')" class="cf-remove-contact" title="Remove person">Ã—</button>
                 `;
                 container.appendChild(div);
                 return id;
@@ -3149,7 +3248,7 @@ try {
                         .reduce((sum, i) => sum + (parseFloat(i.total_amount) || 0), 0);
                     const deductions = custInvoices.reduce((sum, i) => sum + (parseFloat(i.bank_charges) || 0), 0);
 
-                    const symbol = '₹'; 
+                    const symbol = '₹';
                     // ---------------------------
 
                     const contactsList = c.contacts && Array.isArray(c.contacts) ? c.contacts.filter(con => !con.is_primary).map(contact => `
@@ -3160,7 +3259,7 @@ try {
                                 </div>
                                 <div class="cv-contact-info">
                                     <h5>${contact.name}</h5>
-                                    <p>${contact.role || 'No Role'} • ${contact.dept || 'No Dept'}</p>
+                                    <p>${contact.role || 'No Role'} "¢ ${contact.dept || 'No Dept'}</p>
                                 </div>
                             </div>
                             <div class="cv-contact-details">
@@ -3452,6 +3551,13 @@ try {
                                     <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Due Date</label>
                                     <input type="date" id="inv-due-date" class="text-sm font-bold text-slate-900 bg-transparent border-none p-0 focus:ring-0">
                                 </div>
+                                <div class="builder-header-field flex-1 border-l border-slate-100 pl-8">
+                                    <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Designated Salesperson</label>
+                                    <select id="inv-salesperson" class="text-sm font-bold text-slate-900 bg-transparent border-none p-0 focus:ring-0 w-full">
+                                        <option value="">Select Salesperson...</option>
+                                        ${state.sales_persons.map(sp => `<option value="${sp.id}">${sp.name}</option>`).join('')}
+                                    </select>
+                                </div>
                             </div>
                         </div>
 
@@ -3683,7 +3789,7 @@ try {
                 `;
                     // Only initialize for new invoices
                     if (!ui.invoice.activeId) {
-                        ui.invoice.updateDocNo(); 
+                        ui.invoice.updateDocNo();
                         ui.invoice.addItem();
                         // removed ui.invoice.loadDefaultTerms();
                     }
@@ -3824,6 +3930,13 @@ try {
                                 <div class="builder-header-field flex-1">
                                     <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Valid Until</label>
                                     <input type="date" id="qtn-validity" value="${validityDate}" class="text-sm font-bold text-slate-900 bg-transparent border-none p-0 focus:ring-0">
+                                </div>
+                                <div class="builder-header-field flex-1 border-l border-slate-100 pl-8">
+                                    <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Designated Salesperson</label>
+                                    <select id="qtn-salesperson" class="text-sm font-bold text-slate-900 bg-transparent border-none p-0 focus:ring-0 w-full">
+                                        <option value="">Select Salesperson...</option>
+                                        ${state.sales_persons.map(sp => `<option value="${sp.id}">${sp.name}</option>`).join('')}
+                                    </select>
                                 </div>
                             </div>
                         </div>
@@ -4109,6 +4222,13 @@ try {
                                 <div class="builder-header-field flex-1">
                                     <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Due Date</label>
                                     <input type="date" id="pfi-validity" value="${validityDate}" class="text-sm font-bold text-slate-900 bg-transparent border-none p-0 focus:ring-0">
+                                </div>
+                                <div class="builder-header-field flex-1 border-l border-slate-100 pl-8">
+                                    <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Designated Salesperson</label>
+                                    <select id="pfi-salesperson" class="text-sm font-bold text-slate-900 bg-transparent border-none p-0 focus:ring-0 w-full">
+                                        <option value="">Select Salesperson...</option>
+                                        ${state.sales_persons.map(sp => `<option value="${sp.id}">${sp.name}</option>`).join('')}
+                                    </select>
                                 </div>
                             </div>
                         </div>
@@ -4519,7 +4639,7 @@ try {
                             <div class="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                                 <div>
                                     <h3 class="text-2xl font-black text-slate-900 font-display">${title}</h3>
-                                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">FY ${state.fy} • Reporting Period Audit</p>
+                                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">FY ${state.fy} "¢ Reporting Period Audit</p>
                                 </div>
                                 <button onclick="ui.modal.close()" class="p-2 hover:bg-white rounded-xl shadow-sm border border-slate-200 transition-all">
                                     <svg class="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
@@ -4684,6 +4804,26 @@ try {
                             </div>
                         </div>
                     `;
+                } else if (type === 'sales-person') {
+                    root.innerHTML = `
+                        <div class="modal-content bg-white p-8 rounded-3xl w-full max-w-md animate-slide-up">
+                            <h3 class="text-xl font-bold text-slate-900 mb-6 font-display">Add Designated Salesperson</h3>
+                            <form id="sales-person-form" onsubmit="api.masters.saveSalesPerson(event)" class="space-y-4">
+                                <div>
+                                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Salesperson Name</label>
+                                    <input type="text" name="name" required class="form-input" placeholder="e.g. John Doe">
+                                </div>
+                                <div>
+                                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Email Address (Optional)</label>
+                                    <input type="email" name="email" class="form-input" placeholder="john@example.com">
+                                </div>
+                                <div class="flex justify-end gap-3 pt-4">
+                                    <button type="button" onclick="ui.modal.close()" class="px-6 py-2 text-slate-500 font-bold">Cancel</button>
+                                    <button type="submit" class="bg-slate-900 text-white px-8 py-2 rounded-xl font-bold hover:bg-slate-800 shadow-lg shadow-slate-200">Save Salesperson</button>
+                                </div>
+                            </form>
+                        </div>
+                    `;
                 } else if (type === 'license') {
                     const licenseData = data && data.id ? state.licenses.find(l => l.id === data.id) : (data || {});
 
@@ -4767,7 +4907,7 @@ try {
             isOpen: false,
             selectedIndex: -1,
             results: [],
-            
+
             init: () => {
                 const div = document.createElement('div');
                 div.id = 'spotlight-overlay';
@@ -4783,7 +4923,7 @@ try {
                             <div class="p-8 text-center text-slate-400 text-sm">Type something to search... (Ctrl+K)</div>
                         </div>
                         <div class="spotlight-footer">
-                            <span><kbd class="spotlight-kbd">↑↓</kbd> to navigate</span>
+                            <span><kbd class="spotlight-kbd">â†‘â†“</kbd> to navigate</span>
                             <span><kbd class="spotlight-kbd">Enter</kbd> to open</span>
                             <span><kbd class="spotlight-kbd">Esc</kbd> to close</span>
                         </div>
@@ -4796,7 +4936,7 @@ try {
                     input.oninput = (e) => ui.spotlight.search(e.target.value);
                     input.onkeydown = (e) => ui.spotlight.handleKey(e);
                 }
-                div.onclick = (e) => { if(e.target === div) ui.spotlight.close(); };
+                div.onclick = (e) => { if (e.target === div) ui.spotlight.close(); };
 
                 window.addEventListener('keydown', (e) => {
                     if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
@@ -5072,76 +5212,12 @@ try {
             }
         },
         sidebar: {
-            toggle: (id) => {
-                const content = document.getElementById(`dropdown-${id}`);
-                if (!content) return;
-                const trigger = content.previousElementSibling;
-                
-                // Toggle this one
-                content.classList.toggle('active');
-                if (trigger) trigger.classList.toggle('active');
-
-                // Close others
-                document.querySelectorAll('.nav-dropdown-content').forEach(c => {
-                    if (c.id !== `dropdown-${id}`) {
-                        c.classList.remove('active');
-                        if (c.previousElementSibling) c.previousElementSibling.classList.remove('active');
-                    }
-                });
-            },
-            collapse: () => {
-                const aside = document.querySelector('aside');
-                aside.classList.toggle('collapsed');
-            },
-            search: (query) => {
-                const q = query.toLowerCase();
-                const links = document.querySelectorAll('.nav-link, .nav-sub-link');
-                const groups = document.querySelectorAll('.mt-6, .mt-1'); // Module groups
-
-                links.forEach(link => {
-                    const text = link.textContent.toLowerCase();
-                    const visible = text.includes(q);
-                    link.style.display = visible ? 'flex' : 'none';
-                });
-
-                // Handle dropdown triggers
-                document.querySelectorAll('.nav-dropdown-trigger').forEach(trigger => {
-                    const content = document.getElementById(trigger.getAttribute('onclick')?.match(/'([^']+)'/)?.[1]);
-                    // If any child is visible, show trigger
-                    const dropdownId = trigger.getAttribute('onclick')?.match(/'([^']+)'/)?.[1];
-                    if (dropdownId) {
-                        const content = document.getElementById(`dropdown-${dropdownId}`);
-                        const children = content ? content.querySelectorAll('.nav-sub-link') : [];
-                        const hasVisibleChild = Array.from(children).some(c => c.style.display !== 'none');
-                        trigger.parentElement.style.display = (hasVisibleChild || trigger.textContent.toLowerCase().includes(q)) ? 'block' : 'none';
-                        
-                        if (q && hasVisibleChild) {
-                            content.classList.add('active');
-                            trigger.classList.add('active');
-                        }
-                    }
-                });
-
-                // Show/hide headers based on visibility of items following them
-                document.querySelectorAll('.px-2.mb-2').forEach(header => {
-                    let next = header.nextElementSibling;
-                    let hasVisible = false;
-                    while (next && !next.classList.contains('px-2.mb-2') && !next.classList.contains('my-4')) {
-                        if (next.style.display !== 'none') {
-                            hasVisible = true;
-                            break;
-                        }
-                        next = next.nextElementSibling;
-                    }
-                    header.style.display = hasVisible ? 'block' : 'none';
-                });
-            },
+            toggle: (id) => {},
+            collapse: () => {},
+            search: (query) => {},
             clearSearch: () => {
                 const input = document.getElementById('sidebar-search-input');
-                if (input) {
-                    input.value = '';
-                    ui.sidebar.search('');
-                }
+                if (input) input.value = '';
             },
             toggleQuickActions: () => {
                 const menu = document.getElementById('fab-menu');
@@ -5151,6 +5227,85 @@ try {
                     btn.classList.toggle('active');
                 }
             }
+        },
+        globalSearch: {
+            search: (query) => {
+                const q = (query || '').toLowerCase().trim();
+                const resultsEl = document.getElementById('global-search-results');
+                const clearBtn = document.getElementById('global-search-clear');
+                if (!resultsEl) return;
+                if (clearBtn) clearBtn.classList.toggle('hidden', !q);
+                if (!q) { resultsEl.classList.add('hidden'); return; }
+                const customers = state.customers.filter(c =>
+                    (c.name||'').toLowerCase().includes(q)||(c.gstin||'').toLowerCase().includes(q)||
+                    (c.city||'').toLowerCase().includes(q)||(c.email||'').toLowerCase().includes(q)||(c.contact_mobile||'').includes(q)
+                ).slice(0,4);
+                const invoices = state.invoices.filter(i =>
+                    (i.invoice_no||'').toLowerCase().includes(q)||(i.customers?.name||'').toLowerCase().includes(q)||
+                    (i.metadata?.purchase_no||'').toLowerCase().includes(q)
+                ).slice(0,4);
+                const quotations = state.quotations.filter(i =>
+                    (i.quotation_no||'').toLowerCase().includes(q)||(i.customers?.name||'').toLowerCase().includes(q)||
+                    (i.subject||'').toLowerCase().includes(q)
+                ).slice(0,3);
+                const proforma = state.proforma.filter(i =>
+                    (i.doc_no||'').toLowerCase().includes(q)||(i.customers?.name||'').toLowerCase().includes(q)
+                ).slice(0,3);
+                const challans = state.challans.filter(i =>
+                    (i.doc_no||'').toLowerCase().includes(q)||(i.customers?.name||'').toLowerCase().includes(q)
+                ).slice(0,3);
+                const total = customers.length+invoices.length+quotations.length+proforma.length+challans.length;
+                if (total === 0) {
+                    resultsEl.innerHTML = `<div class="search-empty">No results for <strong class="text-slate-400">"${query}"</strong></div>`;
+                    resultsEl.classList.remove('hidden'); return;
+                }
+                let html = '';
+                if (customers.length) {
+                    html += `<div class="search-group-label">Customers</div>`;
+                    html += customers.map(c => `<div class="search-result-item" onclick="ui.globalSearch.openCustomer('${c.id}')"><div class="search-result-icon" style="background:#1d4ed8;color:#93c5fd">${(c.name||'?').charAt(0).toUpperCase()}</div><div class="min-w-0 flex-1"><div class="search-result-title">${c.name}</div><div class="search-result-meta">${c.city||''} ${c.gstin ? '· '+c.gstin : ''}</div></div><span class="search-result-badge" style="background:#1e3a5f;color:#60a5fa">Customer</span></div>`).join('');
+                }
+                if (invoices.length) {
+                    html += `<div class="search-group-label">Tax Invoices</div>`;
+                    html += invoices.map(i => { const sym={INR:'₹',USD:'$',EUR:'€'}[i.currency||'INR']; return `<div class="search-result-item" onclick="ui.globalSearch.openDoc('invoices','${i.id}')"><div class="search-result-icon" style="background:#14532d;color:#86efac">₹</div><div class="min-w-0 flex-1"><div class="search-result-title">${i.invoice_no||'Invoice'}</div><div class="search-result-meta">${i.customers?.name||''} · ${sym}${(i.total_amount||0).toLocaleString('en-IN',{maximumFractionDigits:0})}</div></div><span class="search-result-badge" style="background:#052e16;color:#4ade80">${i.status||'Open'}</span></div>`; }).join('');
+                }
+                if (quotations.length) {
+                    html += `<div class="search-group-label">Quotations</div>`;
+                    html += quotations.map(i => `<div class="search-result-item" onclick="ui.globalSearch.openDoc('quotations','${i.id}')"><div class="search-result-icon" style="background:#312e81;color:#a5b4fc">Q</div><div class="min-w-0 flex-1"><div class="search-result-title">${i.quotation_no||'Quotation'}</div><div class="search-result-meta">${i.customers?.name||''} ${i.subject ? '· '+i.subject : ''}</div></div><span class="search-result-badge" style="background:#1e1b4b;color:#818cf8">${i.status||'Open'}</span></div>`).join('');
+                }
+                if (proforma.length) {
+                    html += `<div class="search-group-label">Pro Forma Invoices</div>`;
+                    html += proforma.map(i => `<div class="search-result-item" onclick="ui.globalSearch.openDoc('proforma','${i.id}')"><div class="search-result-icon" style="background:#7c2d12;color:#fdba74">P</div><div class="min-w-0 flex-1"><div class="search-result-title">${i.doc_no||'Pro Forma'}</div><div class="search-result-meta">${i.customers?.name||''}</div></div><span class="search-result-badge" style="background:#431407;color:#fb923c">PFI</span></div>`).join('');
+                }
+                if (challans.length) {
+                    html += `<div class="search-group-label">Delivery Challans</div>`;
+                    html += challans.map(i => `<div class="search-result-item" onclick="ui.globalSearch.openDoc('challans','${i.id}')"><div class="search-result-icon" style="background:#134e4a;color:#5eead4">D</div><div class="min-w-0 flex-1"><div class="search-result-title">${i.challan_no||'Challan'}</div><div class="search-result-meta">${i.customers?.name||''}</div></div><span class="search-result-badge" style="background:#042f2e;color:#2dd4bf">DC</span></div>`).join('');
+                }
+                resultsEl.innerHTML = html;
+                resultsEl.classList.remove('hidden');
+            },
+            onFocus: () => {
+                const input = document.getElementById('global-search-input');
+                if (input && input.value.trim()) ui.globalSearch.search(input.value);
+                setTimeout(() => { document.addEventListener('click', ui.globalSearch._handleOutsideClick); }, 10);
+            },
+            _handleOutsideClick: (e) => {
+                const wrapper = document.getElementById('global-search-wrapper');
+                if (wrapper && !wrapper.contains(e.target)) {
+                    ui.globalSearch.dismiss();
+                    document.removeEventListener('click', ui.globalSearch._handleOutsideClick);
+                }
+            },
+            dismiss: () => { const el = document.getElementById('global-search-results'); if (el) el.classList.add('hidden'); },
+            clear: () => {
+                const input = document.getElementById('global-search-input');
+                const clearBtn = document.getElementById('global-search-clear');
+                if (input) input.value = '';
+                if (clearBtn) clearBtn.classList.add('hidden');
+                ui.globalSearch.dismiss();
+                document.removeEventListener('click', ui.globalSearch._handleOutsideClick);
+            },
+            openCustomer: (id) => { ui.globalSearch.clear(); ui.customer.view(id); },
+            openDoc: (type, id) => { ui.globalSearch.clear(); api.docs.generatePDF(type, id); }
         },
         reports: {
             openModal: (type) => ui.modal.open('gst-report-detail', type),
@@ -5451,7 +5606,7 @@ try {
                             }
 
                             const rowTaxable = (item.qty * item.rate * (1 - (item.discount || 0) / 100)) * exRate;
-                            
+
                             let gstRate = 0;
                             if (inv.type === 'Regular') {
                                 if (item._source === 'legacy') {
@@ -6142,6 +6297,7 @@ try {
                         setVal('inv-bank-deduction', inv.bank_charges_deduction || 0);
                         setVal('inv-pbg', inv.pbg_amount || 0);
                         setVal('inv-other-deduction', inv.other_deductions || 0);
+                        setVal('inv-salesperson', inv.metadata?.sales_person_id || '');
 
                         // Custom Fields
                         if (inv.custom_fields && Array.isArray(inv.custom_fields)) {
@@ -6151,7 +6307,7 @@ try {
                         // Line Items
                         const container = document.getElementById('inv-line-items');
                         container.innerHTML = '';
-                        
+
                         // Try new metadata format first
                         if (inv.metadata?.items && Array.isArray(inv.metadata.items)) {
                             inv.metadata.items.forEach(item => {
@@ -6240,7 +6396,7 @@ try {
 
                     subtotal += amount;
                     row.querySelector('.pur-item-total').textContent = `₹${amount.toLocaleString()}`;
-                    
+
                     // Default 18% tax for purchases too if not specified
                     taxTotal += (amount * 18) / 100;
                 });
@@ -6642,6 +6798,7 @@ try {
                                 name: div.querySelector('.cf-name').value,
                                 value: div.querySelector('.cf-value').value
                             })).filter(f => f.name || f.value),
+                            sales_person_id: document.getElementById('pfi-salesperson')?.value || null,
                             items: []
                         }
                     };
@@ -6676,7 +6833,7 @@ try {
                     }
 
                     ui.modal.close();
-                    
+
                     // If converted from Quotation, mark it as closed
                     if (ui.proforma_v2.sourceQuotationId) {
                         await supabaseClient.from('quotations')
@@ -7057,7 +7214,7 @@ try {
                     totalDiscount += discount;
                     taxableTotal += taxable;
 
-                    let gstRate = (qtnType === 'Regular') ? 18 : 0; 
+                    let gstRate = (qtnType === 'Regular') ? 18 : 0;
                     if (qtnType === 'LUT / Export' || qtnType === 'Without GST') gstRate = 0;
 
                     const taxAmount = Math.round((taxable * gstRate) * 100) / 10000;
@@ -7213,6 +7370,7 @@ try {
                                     name: div.querySelector('.qcf-name').value,
                                     value: div.querySelector('.qcf-value').value
                                 })).filter(f => f.name || f.value),
+                                sales_person_id: document.getElementById('qtn-salesperson')?.value || null,
                                 items: []
                             }
                         };
@@ -7309,9 +7467,14 @@ try {
 
         sales: {
             filter: 'All',
+            salesPersonId: '',
             searchQuery: '',
             setFilter: (f) => {
                 ui.sales.filter = f;
+                render();
+            },
+            setSalesPersonFilter: (id) => {
+                ui.sales.salesPersonId = id;
                 render();
             },
             search: (q) => {
@@ -7352,9 +7515,14 @@ try {
         },
         quotations: {
             filter: 'All',
+            salesPersonId: '',
             searchQuery: '',
             setFilter: (f) => {
                 ui.quotations.filter = f;
+                render();
+            },
+            setSalesPersonFilter: (id) => {
+                ui.quotations.salesPersonId = id;
                 render();
             },
             search: (q) => {
@@ -7408,6 +7576,7 @@ try {
                     if (document.getElementById('qtn-delivery-time')) document.getElementById('qtn-delivery-time').value = qtn.delivery_time || '';
                     if (document.getElementById('qtn-delivery-mode')) document.getElementById('qtn-delivery-mode').value = qtn.delivery_mode || '';
                     if (document.getElementById('qtn-terms')) document.getElementById('qtn-terms').value = qtn.terms || '';
+                    if (document.getElementById('qtn-salesperson')) document.getElementById('qtn-salesperson').value = qtn.metadata?.sales_person_id || '';
 
                     // Signature toggle
                     ui.quotation_v2.includeSignature = qtn.metadata?.include_signature !== false;
@@ -7436,7 +7605,7 @@ try {
                     const list = document.getElementById('qtn-line-items');
                     if (list) {
                         list.innerHTML = '';
-                        
+
                         // Try new metadata format first
                         if (qtn.metadata?.items && Array.isArray(qtn.metadata.items)) {
                             qtn.metadata.items.forEach(item => {
@@ -7484,9 +7653,14 @@ try {
         },
         proforma: {
             filter: 'All',
+            salesPersonId: '',
             searchQuery: '',
             setFilter: (f) => {
                 ui.proforma.filter = f;
+                render();
+            },
+            setSalesPersonFilter: (id) => {
+                ui.proforma.salesPersonId = id;
                 render();
             },
             search: (q) => {
@@ -7540,6 +7714,7 @@ try {
                     if (document.getElementById('pfi-delivery-time')) document.getElementById('pfi-delivery-time').value = p.delivery_time || '';
                     if (document.getElementById('pfi-delivery-mode')) document.getElementById('pfi-delivery-mode').value = p.delivery_mode || '';
                     if (document.getElementById('pfi-terms')) document.getElementById('pfi-terms').value = p.terms || '';
+                    if (document.getElementById('pfi-salesperson')) document.getElementById('pfi-salesperson').value = p.metadata?.sales_person_id || '';
                     if (document.getElementById('pfi-currency')) document.getElementById('pfi-currency').value = p.currency || 'INR';
                     if (p.bank_id && document.getElementById('pfi-bank')) document.getElementById('pfi-bank').value = p.bank_id;
 
@@ -7556,7 +7731,7 @@ try {
                     const container = document.getElementById('pfi-line-items');
                     if (container) {
                         container.innerHTML = '';
-                        
+
                         // Try new metadata format first
                         if (p.metadata?.items && Array.isArray(p.metadata.items)) {
                             p.metadata.items.forEach(item => {
@@ -7634,7 +7809,7 @@ try {
             fetch: async () => {
                 console.log('📦 Refreshing Master Data...');
                 // Products module removed to save Supabase storage/memory
-                state.products = []; 
+                state.products = [];
 
                 const { data: customers } = await supabaseClient.from('customers').select('*').order('name', { ascending: true });
                 state.customers = customers || [];
@@ -7643,7 +7818,62 @@ try {
                 const { data: settings } = await supabaseClient.from('settings').select('*').limit(1);
                 state.settings = settings && settings.length > 0 ? settings[0] : {};
 
+                // Fetch Sales Persons
+                const { data: salesPersons } = await supabaseClient.from('sales_persons').select('*').order('name', { ascending: true });
+                state.sales_persons = salesPersons || [];
+
                 render();
+            },
+
+            saveSalesPerson: async (e) => {
+                e.preventDefault();
+                const btn = e.target.querySelector('button[type="submit"]');
+                const originalText = btn.innerHTML;
+                btn.disabled = true;
+                btn.innerHTML = 'Saving...';
+
+                const formData = new FormData(e.target);
+                const data = {
+                    ...Object.fromEntries(formData.entries()),
+                    user_id: state.user.id
+                };
+
+                try {
+                    const { error } = await supabaseClient
+                        .from('sales_persons')
+                        .insert([data]);
+
+                    if (error) throw error;
+
+                    api.notifications.show('Salesperson added successfully');
+                    ui.modal.close();
+                    await api.masters.fetch(); // Refresh state
+                } catch (err) {
+                    console.error('Save Salesperson Error:', err);
+                    api.notifications.show(`Failed to save: ${err.message}`, 'error');
+                } finally {
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                }
+            },
+
+            deleteSalesPerson: async (id) => {
+                if (!confirm('Are you sure you want to delete this salesperson? This will not affect existing documents.')) return;
+
+                try {
+                    const { error } = await supabaseClient
+                        .from('sales_persons')
+                        .delete()
+                        .eq('id', id);
+
+                    if (error) throw error;
+
+                    api.notifications.show('Salesperson removed');
+                    await api.masters.fetch(); // Refresh state
+                } catch (err) {
+                    console.error('Delete Salesperson Error:', err);
+                    api.notifications.show(`Failed to delete: ${err.message}`, 'error');
+                }
             },
 
             save: async (table, e) => {
@@ -7836,6 +8066,7 @@ try {
                             contact_name: document.getElementById('inv-contact-name')?.value || null,
                             contact_role: document.getElementById('inv-contact-role')?.value || null,
                             contact_dept: document.getElementById('inv-contact-dept')?.value || null,
+                            sales_person_id: document.getElementById('inv-salesperson')?.value || null,
                             items: []
                         }
                     };
@@ -7962,33 +8193,33 @@ try {
                     }
 
                     const rows = filtered.map(inv => ({
-                        'Invoice #':          inv.invoice_no || '',
-                        'Date':               inv.date || '',
-                        'Due Date':           inv.due_date || '',
-                        'Customer':           inv.customers?.name || '',
-                        'City':               inv.customers?.city || '',
-                        'GSTIN':              inv.customers?.gstin || '',
-                        'Type':               inv.type || 'Regular',
-                        'Currency':           inv.currency || 'INR',
-                        'Amount':             inv.total_amount || 0,
-                        'INR Equivalent':     (inv.total_amount || 0) * (inv.exchange_rate || 1),
-                        'Status':             inv.status || 'Pending',
-                        'PO Number':          inv.purchase_no || '',
-                        'PO Date':            inv.purchase_date || '',
-                        'Payment Terms':      inv.payment_terms || '',
-                        'Delivery Mode':      inv.delivery_mode || '',
-                        'Bank Account':       inv.bank_id || '',
-                        'TDS Amount':         inv.tds_amount || 0,
-                        'Bank Deduction':     inv.bank_charges_deduction || 0,
-                        'PBG Amount':         inv.pbg_amount || 0,
-                        'Other Deductions':   inv.other_deductions || 0,
-                        'Net Realisation':    (inv.total_amount || 0) - (inv.tds_amount || 0) - (inv.bank_charges_deduction || 0) - (inv.pbg_amount || 0) - (inv.other_deductions || 0)
+                        'Invoice #': inv.invoice_no || '',
+                        'Date': inv.date || '',
+                        'Due Date': inv.due_date || '',
+                        'Customer': inv.customers?.name || '',
+                        'City': inv.customers?.city || '',
+                        'GSTIN': inv.customers?.gstin || '',
+                        'Type': inv.type || 'Regular',
+                        'Currency': inv.currency || 'INR',
+                        'Amount': inv.total_amount || 0,
+                        'INR Equivalent': (inv.total_amount || 0) * (inv.exchange_rate || 1),
+                        'Status': inv.status || 'Pending',
+                        'PO Number': inv.purchase_no || '',
+                        'PO Date': inv.purchase_date || '',
+                        'Payment Terms': inv.payment_terms || '',
+                        'Delivery Mode': inv.delivery_mode || '',
+                        'Bank Account': inv.bank_id || '',
+                        'TDS Amount': inv.tds_amount || 0,
+                        'Bank Deduction': inv.bank_charges_deduction || 0,
+                        'PBG Amount': inv.pbg_amount || 0,
+                        'Other Deductions': inv.other_deductions || 0,
+                        'Net Realisation': (inv.total_amount || 0) - (inv.tds_amount || 0) - (inv.bank_charges_deduction || 0) - (inv.pbg_amount || 0) - (inv.other_deductions || 0)
                     }));
 
                     const ws = XLSX.utils.json_to_sheet(rows);
                     ws['!cols'] = [
                         { wch: 22 }, { wch: 12 }, { wch: 12 }, { wch: 28 }, { wch: 16 },
-                        { wch: 18 }, { wch: 14 }, { wch: 8  }, { wch: 14 }, { wch: 16 },
+                        { wch: 18 }, { wch: 14 }, { wch: 8 }, { wch: 14 }, { wch: 16 },
                         { wch: 12 }, { wch: 14 }, { wch: 12 }, { wch: 20 }, { wch: 16 },
                         { wch: 10 }, { wch: 12 }, { wch: 14 }, { wch: 12 }, { wch: 16 }, { wch: 16 }
                     ];
@@ -8083,7 +8314,7 @@ try {
 
                     const { jsPDF } = window.jspdf;
                     const doc = new jsPDF();
-                    
+
                     let items = [];
                     // Try new metadata format first
                     if (inv.metadata?.items && Array.isArray(inv.metadata.items)) {
@@ -8384,7 +8615,7 @@ try {
                             };
                         }
                         const rowTaxable = (item.qty * item.rate * (1 - (item.discount || 0) / 100)) * exRate;
-                        
+
                         let gstRate = 0;
                         if (inv.type !== 'Without GST' && inv.type !== 'LUT / Export') {
                             if (item._source === 'legacy') {
@@ -8394,7 +8625,7 @@ try {
                                 gstRate = item.tax_rate !== undefined ? item.tax_rate : (item.gst !== undefined ? item.gst : 18);
                             }
                         }
-                        
+
                         const rowTax = (rowTaxable * gstRate) / 100;
 
                         const custStateCode = String(inv.customers?.state || '').substring(0, 2);
@@ -8684,7 +8915,7 @@ try {
                         // Line Items
                         const container = document.getElementById('inv-line-items');
                         container.innerHTML = '';
-                        
+
                         // Try new metadata format first
                         if (pfi.metadata?.items && Array.isArray(pfi.metadata.items)) {
                             pfi.metadata.items.forEach(item => {
@@ -8763,7 +8994,7 @@ try {
                         // Line Items
                         const container = document.getElementById('pfi-line-items');
                         container.innerHTML = '';
-                        
+
                         // Try new metadata format first
                         if (quotation.metadata?.items && Array.isArray(quotation.metadata.items)) {
                             quotation.metadata.items.forEach(item => {
@@ -8844,7 +9075,7 @@ try {
                         // Line Items
                         const container = document.getElementById('inv-line-items');
                         container.innerHTML = '';
-                        
+
                         // Try new metadata format first
                         if (quotation.metadata?.items && Array.isArray(quotation.metadata.items)) {
                             quotation.metadata.items.forEach(item => {
@@ -8995,7 +9226,7 @@ try {
                         }
                     }
 
-                    console.log('✅ Migration Complete!');
+                    console.log('âœ… Migration Complete!');
                     api.notifications.show('Data Migration Successful');
                     // Refresh state
                     await api.invoices.fetch();
@@ -9039,8 +9270,8 @@ try {
 
                         items = doc.metadata.items.map(it => ({
                             ...it,
-                            products: { 
-                                name: it.product_name || 'Item', 
+                            products: {
+                                name: it.product_name || 'Item',
                                 hsn: it.hsn || '',
                                 gst: it.tax_rate !== undefined ? it.tax_rate : (it.gst !== undefined ? it.gst : defaultTax)
                             }
@@ -9269,7 +9500,7 @@ try {
                     pdf.setFontSize(7);
                     pdf.setFont('Poppins', 'bold');
                     pdf.text('Billing Address:', margin + 2, y + 4);
-                    
+
                     pdf.setFontSize(9);
                     pdf.text(splitName, margin + 2, y + 9);
                     let currentCustY = y + 9 + (splitName.length * 4.5);
@@ -9299,7 +9530,7 @@ try {
                     pdf.setFontSize(7);
                     pdf.setFont('Poppins', 'bold');
                     pdf.text('Shipping address:', margin + custBoxWidth + 2, y + 4);
-                    
+
                     pdf.setFontSize(9);
                     pdf.text(splitShipTitle, margin + custBoxWidth + 2, y + 9);
                     let currentShipY = y + 9 + (splitShipTitle.length * 4.5);
@@ -9701,11 +9932,11 @@ try {
                     const margin = 10;
 
                     const model = api.docs.pdfModel;
-                    
+
                     // Header
-                    const dummyDoc = { 
-                        invoice_no: '-', 
-                        date: new Date().toISOString() 
+                    const dummyDoc = {
+                        invoice_no: '-',
+                        date: new Date().toISOString()
                     };
                     const { dynamicHeaderHeight } = model.renderHeader(pdf, dummyDoc, 'ledger', settings, margin, pageWidth);
 
@@ -9717,13 +9948,13 @@ try {
                     pdf.text('Statement For:', margin, headerBottomY + 10);
                     pdf.setFont('Poppins', 'normal');
                     pdf.text(customer.name, margin, headerBottomY + 15);
-                    
+
                     const addressLines = [
                         customer.billing_address || customer.address || '',
                         customer.city || '',
                         customer.gstin ? `GSTIN: ${customer.gstin}` : ''
                     ].filter(l => l);
-                    
+
                     let addrY = headerBottomY + 20;
                     addressLines.forEach(line => {
                         pdf.text(line, margin, addrY);
@@ -9737,7 +9968,7 @@ try {
                         const debit = inv.total_amount || 0;
                         const credit = inv.status === 'Paid' ? debit : 0;
                         runningBalance += (debit - credit);
-                        
+
                         return [
                             new Date(inv.date).toLocaleDateString('en-IN'),
                             `Invoice: ${inv.invoice_no}`,
@@ -9763,7 +9994,7 @@ try {
                     });
 
                     // Deductions Summary Section
-                    const invoicesWithDeductions = invoices.filter(inv => 
+                    const invoicesWithDeductions = invoices.filter(inv =>
                         (inv.tds_amount > 0 || inv.bank_charges_deduction > 0 || inv.pbg_amount > 0 || inv.other_deductions > 0)
                     );
 
@@ -9777,7 +10008,7 @@ try {
                         pdf.setFont('Poppins', 'bold');
                         pdf.setTextColor(51, 65, 85);
                         pdf.text('Deductions Summary:', margin, nextY);
-                        
+
                         const dedHead = [['Date', 'Invoice #', 'TDS', 'Bank Chg', 'PBG', 'Other', 'Total']];
                         const dedBody = invoicesWithDeductions.map(inv => {
                             const total = (inv.tds_amount || 0) + (inv.bank_charges_deduction || 0) + (inv.pbg_amount || 0) + (inv.other_deductions || 0);
@@ -9863,4 +10094,5 @@ try {
     console.error('CRITICAL STARTUP ERROR:', e);
     alert('CRITICAL STARTUP ERROR: ' + e.message);
 }
+
 
