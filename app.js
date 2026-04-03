@@ -366,6 +366,38 @@ try {
             const userName = state.user?.email ? state.user.email.split('@')[0] : 'User';
             const capitalizedName = userName.charAt(0).toUpperCase() + userName.slice(1);
 
+            // --- Accounts Receivable (AR) Logic ---
+            // Now filtered by Financial Year (FY) as per user request
+            const pendingInvoicesList = state.invoices.filter(i => i.status === 'Pending' && isWithinFY(i.date, state.fy));
+            const totalOutstanding = pendingInvoicesList.reduce((sum, i) => sum + ((i.total_amount || 0) * (i.exchange_rate || 1)), 0);
+            
+            const overdueList = pendingInvoicesList.filter(i => i.due_date && new Date(i.due_date) < now);
+            const totalOverdue = overdueList.reduce((sum, i) => sum + ((i.total_amount || 0) * (i.exchange_rate || 1)), 0);
+
+            // Aging Buckets
+            const aging = { '0-30': 0, '31-60': 0, '61-90': 0, '90+': 0 };
+            pendingInvoicesList.forEach(inv => {
+                const dueDate = new Date(inv.due_date || inv.date);
+                const diffDays = Math.floor((now - dueDate) / (1000 * 60 * 60 * 24));
+                const val = (inv.total_amount || 0) * (inv.exchange_rate || 1);
+                if (diffDays <= 30) aging['0-30'] += val;
+                else if (diffDays <= 60) aging['31-60'] += val;
+                else if (diffDays <= 90) aging['61-90'] += val;
+                else aging['90+'] += val;
+            });
+
+            // Top Outstanding by Customer
+            const customerDues = {};
+            pendingInvoicesList.forEach(inv => {
+                const cid = inv.customer_id;
+                if (!customerDues[cid]) {
+                    customerDues[cid] = { name: inv.customers?.name || 'Unknown', amount: 0, oldest: inv.date };
+                }
+                customerDues[cid].amount += (inv.total_amount || 0) * (inv.exchange_rate || 1);
+                if (new Date(inv.date) < new Date(customerDues[cid].oldest)) customerDues[cid].oldest = inv.date;
+            });
+            const topDefaulters = Object.values(customerDues).sort((a, b) => b.amount - a.amount).slice(0, 5);
+
             return `
             <div class="dashboard-welcome-section mb-8 animate-fade-in">
                 <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
@@ -390,7 +422,39 @@ try {
                 </div>
             </div>
             <!-- Enhanced Stats Grid -->
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-slide-up">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-slide-up">
+                <!-- Total Outstanding Card (AR) -->
+                <div class="dashboard-stat-card border-l-4 border-amber-500 bg-amber-50/30">
+                    <div class="stat-icon text-amber-600">
+                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/>
+                        </svg>
+                    </div>
+                    <div class="stat-content">
+                        <p class="stat-label">Total Outstanding</p>
+                        <h4 class="stat-value tabular-nums text-amber-700">₹${totalOutstanding.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</h4>
+                        <p class="stat-subtitle font-bold text-amber-600">${pendingInvoicesList.length} Pending Invoices</p>
+                    </div>
+                </div>
+
+                <!-- Overdue Amount Card (AR) -->
+                <div class="dashboard-stat-card border-l-4 border-rose-500 bg-rose-50/30">
+                    <div class="stat-icon text-rose-600">
+                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                        </svg>
+                    </div>
+                    <div class="stat-content">
+                        <p class="stat-label">Total Overdue</p>
+                        <h4 class="stat-value tabular-nums text-rose-700">₹${totalOverdue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</h4>
+                        <div class="stat-progress mt-2">
+                             <div class="progress-bar bg-rose-100">
+                                <div class="progress-fill bg-rose-500" style="width: ${Math.min(100, (totalOverdue / totalOutstanding * 100) || 0)}%"></div>
+                            </div>
+                            <p class="text-[9px] font-bold text-rose-600 mt-1">${((totalOverdue / totalOutstanding * 100) || 0).toFixed(1)}% of outstanding</p>
+                        </div>
+                    </div>
+                </div>
                 <!-- Total Sales Card -->
                 <div class="dashboard-stat-card gradient-blue">
                     <div class="stat-icon">
@@ -493,13 +557,117 @@ try {
             <!-- Enhanced Analytics Section -->
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-8">
                 <!-- Revenue Trend Chart -->
-                <div class="analytics-card lg:col-span-3">
+                <div class="analytics-card lg:col-span-2">
                     <div class="flex items-center justify-between mb-4">
                         <h5 class="analytics-title">Revenue Trend (FY ${state.fy})</h5>
                         <div class="text-xs text-slate-400">Monthly breakdown in ₹</div>
                     </div>
                     <div style="height: 300px; position: relative;">
                         <canvas id="revenueTrendChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Regional Revenue Table -->
+                <div class="analytics-card lg:col-span-1 flex flex-col">
+                    <div class="flex items-center justify-between mb-6">
+                        <h5 class="analytics-title">Revenue by Region</h5>
+                        <span class="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-black uppercase tracking-widest">${Object.keys(data.regional || {}).length} Regions</span>
+                    </div>
+                    
+                    <div class="flex-1 overflow-y-auto pr-2 max-h-[300px] custom-scrollbar">
+                        ${(() => {
+                            const regionalData = Object.entries(data.regional || {})
+                                .sort(([, a], [, b]) => b.revenue - a.revenue);
+                            
+                            if (regionalData.length === 0) {
+                                return `<div class="h-full flex items-center justify-center text-slate-400 italic text-xs">No regional data available for this period.</div>`;
+                            }
+
+                            const maxRevenue = regionalData[0][1].revenue || 1;
+
+                            return `
+                                <div class="space-y-4">
+                                    ${regionalData.map(([stateName, stats]) => `
+                                        <div class="group">
+                                            <div class="flex items-center justify-between mb-1.5">
+                                                <div class="flex flex-col">
+                                                    <span class="text-sm font-bold text-slate-800 group-hover:text-blue-600 transition-colors">${stateName}</span>
+                                                    <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">${stats.count} Invoices</span>
+                                                </div>
+                                                <div class="text-right">
+                                                    <span class="text-sm font-black text-slate-900 tabular-nums">₹${stats.revenue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
+                                                    <div class="text-[9px] text-slate-400 font-bold tabular-nums">${((stats.revenue / maxRevenue) * 100).toFixed(0)}% contribution</div>
+                                                </div>
+                                            </div>
+                                            <div class="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                                                <div class="h-full bg-blue-500 rounded-full transition-all duration-1000 ease-out" 
+                                                     style="width: ${(stats.revenue / maxRevenue) * 100}%">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            `;
+                        })()}
+                    </div>
+                    
+                    <div class="mt-4 pt-4 border-t border-slate-50 flex items-center justify-between text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                        <span>Total Markets</span>
+                        <span class="text-slate-900">${Object.keys(data.regional || {}).length} States</span>
+                    </div>
+            </div>
+            </div>
+
+            <!-- Accounts Receivable Section -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8 animate-slide-up">
+                <!-- Aging Analysis Chart -->
+                <div class="analytics-card">
+                    <div class="flex items-center justify-between mb-6">
+                        <h5 class="analytics-title">Accounts Receivable Aging</h5>
+                        <div class="flex gap-2">
+                             <span class="text-[9px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-black uppercase">By Due Date</span>
+                        </div>
+                    </div>
+                    <div style="height: 250px; position: relative;">
+                        <canvas id="agingReceivablesChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Top Defaulters / Outstanding by Customer -->
+                <div class="analytics-card">
+                    <div class="flex items-center justify-between mb-6">
+                        <h5 class="analytics-title">Top Outstanding by Customer</h5>
+                        <span class="text-[10px] bg-amber-50 text-amber-600 px-2 py-0.5 rounded font-black uppercase tracking-widest">Action Required</span>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left">
+                            <thead class="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50">
+                                <tr>
+                                    <th class="pb-3">Customer</th>
+                                    <th class="pb-3 text-right">Balance</th>
+                                    <th class="pb-3 text-right">Oldest Inv</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-50">
+                                ${topDefaulters.length > 0 ? topDefaulters.map(def => `
+                                    <tr class="group hover:bg-slate-50/50 transition-colors">
+                                        <td class="py-3 pr-4">
+                                            <p class="text-sm font-bold text-slate-800 group-hover:text-blue-600 transition-colors cursor-pointer">${def.name}</p>
+                                        </td>
+                                        <td class="py-3 text-right">
+                                            <p class="text-sm font-black text-slate-900 tabular-nums">₹${def.amount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</p>
+                                        </td>
+                                        <td class="py-3 text-right">
+                                            <p class="text-[10px] text-slate-400 font-bold">${formatDate(def.oldest, { day: '2-digit', month: 'short' })}</p>
+                                        </td>
+                                    </tr>
+                                `).join('') : `
+                                    <tr>
+                                        <td colspan="3" class="py-12 text-center text-slate-400 italic text-xs">No outstanding dues detected. Great job!</td>
+                                    </tr>
+                                `}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
@@ -2585,7 +2753,8 @@ try {
                     el.viewContainer.innerHTML = Templates.Dashboard({
                         sales: state.reports.sales.taxable + state.reports.sales.tax,
                         tax: state.reports.sales.tax,
-                        itc: state.reports.purchases.tax
+                        itc: state.reports.purchases.tax,
+                        regional: state.reports.regional
                     });
                     // Initialize charts after rendering
                     ui.dashboard.initCharts();
@@ -2843,6 +3012,72 @@ try {
                                 x: {
                                     grid: { display: false, drawBorder: false },
                                     ticks: { font: { family: 'Poppins', size: 10 } }
+                                }
+                            }
+                        }
+                    });
+                }
+
+                // --- Aging Receivables Chart ---
+                const agingCtx = document.getElementById('agingReceivablesChart');
+                if (agingCtx && window.Chart) {
+                    // Filter by Financial Year (FY) to match stats cards
+                    const pendingList = state.invoices.filter(i => i.status === 'Pending' && isWithinFY(i.date, state.fy));
+                    const now = new Date();
+                    const buckets = { '0-30': 0, '31-60': 0, '61-90': 0, '90+': 0 };
+                    
+                    pendingList.forEach(inv => {
+                        const dueDate = new Date(inv.due_date || inv.date);
+                        const diffDays = Math.floor((now - dueDate) / (1000 * 60 * 60 * 24));
+                        const val = (inv.total_amount || 0) * (inv.exchange_rate || 1);
+                        if (diffDays <= 30) buckets['0-30'] += val;
+                        else if (diffDays <= 60) buckets['31-60'] += val;
+                        else if (diffDays <= 90) buckets['61-90'] += val;
+                        else buckets['90+'] += val;
+                    });
+
+                    new Chart(agingCtx, {
+                        type: 'bar',
+                        data: {
+                            labels: ['0-30 Days', '31-60 Days', '61-90 Days', '90+ Days'],
+                            datasets: [{
+                                label: 'Outstanding (₹)',
+                                data: [buckets['0-30'], buckets['31-60'], buckets['61-90'], buckets['90+']],
+                                backgroundColor: [
+                                    'rgba(59, 130, 246, 0.6)', 
+                                    'rgba(245, 158, 11, 0.6)', 
+                                    'rgba(249, 115, 22, 0.6)', 
+                                    'rgba(239, 68, 68, 0.6)'
+                                ],
+                                borderColor: ['#3b82f6', '#f59e0b', '#f97316', '#ef4444'],
+                                borderWidth: 1,
+                                borderRadius: 6
+                            }]
+                        },
+                        options: {
+                            indexAxis: 'y',
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { display: false },
+                                tooltip: {
+                                    backgroundColor: '#1e293b',
+                                    callbacks: {
+                                        label: (ctx) => `Outstanding: ₹${ctx.raw.toLocaleString('en-IN')}`
+                                    }
+                                }
+                            },
+                            scales: {
+                                x: {
+                                    grid: { display: false },
+                                    ticks: {
+                                        font: { family: 'Poppins', size: 10 },
+                                        callback: (val) => val >= 1000 ? (val / 1000) + 'k' : val
+                                    }
+                                },
+                                y: {
+                                    grid: { display: false },
+                                    ticks: { font: { family: 'Poppins', size: 10, weight: '600' } }
                                 }
                             }
                         }
@@ -8563,7 +8798,8 @@ try {
                     }
 
                     // Regional aggregation
-                    const stateName = inv.customers?.state || 'Unknown';
+                    const sRef = Constants.States.find(s => s.code === (inv.customers?.state || ''));
+                    const stateName = sRef ? sRef.name.split(' - ')[1] : (inv.customers?.state || 'Unknown');
                     if (!results.regional[stateName]) {
                         results.regional[stateName] = { revenue: 0, count: 0 };
                     }
