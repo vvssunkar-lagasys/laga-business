@@ -5761,9 +5761,17 @@ try {
                         .in('invoice_id', invIds);
 
                     const allItems = [];
-                    if (legacyItems) allItems.push(...legacyItems.map(it => ({ ...it, _source: 'legacy' })));
+                    const invoicesWithLegacyItems = new Set();
+                    if (legacyItems) {
+                        legacyItems.forEach(it => {
+                            invoicesWithLegacyItems.add(it.invoice_id);
+                            allItems.push({ ...it, _source: 'legacy' });
+                        });
+                    }
 
                     filteredInvoices.forEach(inv => {
+                        // Skip JSON items if this invoice already has legacy items (prevents double-counting)
+                        if (invoicesWithLegacyItems.has(inv.id)) return;
                         if (inv.metadata?.items && Array.isArray(inv.metadata.items)) {
                             inv.metadata.items.forEach(it => {
                                 allItems.push({
@@ -5867,6 +5875,30 @@ try {
                             }
                         });
                     }
+
+                    // Distribute bank charges proportionally across HSN entries
+                    filteredInvoices.forEach(inv => {
+                        const bankCharges = (inv.bank_charges || 0) * (inv.exchange_rate || 1.0);
+                        if (bankCharges === 0) return;
+
+                        const isExport = inv.type === 'LUT / Export';
+                        const hsnMap = isExport ? hsnExport : hsnDomestic;
+                        const hsnKeys = Object.keys(hsnMap);
+                        if (hsnKeys.length === 0) return;
+
+                        // Get items for this invoice to calculate proportional share
+                        const invItems = allItems.filter(it => it.invoice_id === inv.id);
+                        const invTaxable = invItems.reduce((s, it) => s + (it.qty * it.rate * (1 - (it.discount || 0) / 100)) * (inv.exchange_rate || 1.0), 0);
+                        if (invTaxable === 0) return;
+
+                        invItems.forEach(item => {
+                            const hsn = item.hsn_code || 'N/A';
+                            if (!hsnMap[hsn]) return;
+                            const itemTaxable = (item.qty * item.rate * (1 - (item.discount || 0) / 100)) * (inv.exchange_rate || 1.0);
+                            const share = itemTaxable / invTaxable;
+                            hsnMap[hsn].taxable += bankCharges * share;
+                        });
+                    });
 
                     // Aggregate B2CS by state and rate
                     // Aggregate B2CS by state and rate
@@ -8754,11 +8786,19 @@ try {
                     .select('*, products(name, gst, hsn)')
                     .in('invoice_id', invIds);
 
-                // Collect all items (Legacy + JSONB)
+                // Collect all items (Legacy + JSONB) — deduplicated
                 const allItems = [];
-                if (legacyItems) allItems.push(...legacyItems.map(it => ({ ...it, _source: 'legacy' })));
+                const invoicesWithLegacyItems = new Set();
+                if (legacyItems) {
+                    legacyItems.forEach(it => {
+                        invoicesWithLegacyItems.add(it.invoice_id);
+                        allItems.push({ ...it, _source: 'legacy' });
+                    });
+                }
 
                 state.invoices.forEach(inv => {
+                    // Skip JSON items if this invoice already has legacy items (prevents double-counting)
+                    if (invoicesWithLegacyItems.has(inv.id)) return;
                     if (inv.metadata?.items && Array.isArray(inv.metadata.items)) {
                         inv.metadata.items.forEach(it => {
                             allItems.push({
@@ -8893,6 +8933,35 @@ try {
                         results.hsn[hsn].count += (item.qty || 0);
                     });
                 }
+
+                // Distribute bank charges proportionally across HSN entries for reports
+                state.invoices.forEach(inv => {
+                    const bankCharges = (inv.bank_charges || 0) * (inv.exchange_rate || 1.0);
+                    if (bankCharges === 0) return;
+                    if (!isWithinFY(inv.date, state.fy)) return;
+
+                    const invDate = new Date(inv.date);
+                    const monthLabel = invDate.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+                    const category = (inv.type === 'LUT / Export') ? 'exports' : 'domestic';
+                    
+                    if (!results.hsnByMonth[monthLabel]) return;
+                    const hsnMap = results.hsnByMonth[monthLabel][category];
+                    
+                    // Filter items belonging to this invoice
+                    const invItems = allItems.filter(it => it.invoice_id === inv.id);
+                    const invTaxable = invItems.reduce((s, it) => s + (it.qty * it.rate * (1 - (it.discount || 0) / 100)) * (inv.exchange_rate || 1.0), 0);
+                    if (invTaxable === 0) return;
+
+                    invItems.forEach(item => {
+                        const hsn = item.hsn_code || 'N/A';
+                        const itemTaxable = (item.qty * item.rate * (1 - (item.discount || 0) / 100)) * (inv.exchange_rate || 1.0);
+                        const share = itemTaxable / invTaxable;
+                        const allocatedCharge = bankCharges * share;
+
+                        if (hsnMap[hsn]) hsnMap[hsn].taxable += allocatedCharge;
+                        if (results.hsn[hsn]) results.hsn[hsn].taxable += allocatedCharge;
+                    });
+                });
 
                 results.purchases.tax = state.purchases
                     .filter(pur => isWithinFY(pur.date, state.fy))
@@ -9568,11 +9637,11 @@ try {
                     pdf.setDrawColor(0, 0, 0);
                     pdf.setLineWidth(0.1);
                     pdf.rect(margin, margin, pageWidth - (margin * 2), 10); // Top Title Box
-                    pdf.setFontSize(10);
+                    pdf.setFontSize(12);
                     pdf.setFont('Poppins', 'bold');
                     const title = api.docs.pdfModel.getTitle(type);
                     pdf.text(title, pageWidth / 2, margin + 7, { align: 'center' });
-                    pdf.setFontSize(7);
+                    pdf.setFontSize(8);
                     pdf.text('ORIGINAL FOR RECIPIENT', pageWidth - margin - 2, margin + 7, { align: 'right' });
 
                     // Company Info Box (Left Half)
@@ -9581,18 +9650,18 @@ try {
                     const contentX = margin + textPadding;
 
                     // Dynamic Height Calculation
-                    pdf.setFontSize(8.5);
+                    pdf.setFontSize(9.5);
                     pdf.setFont('Poppins', 'normal');
                     const splitAddr = pdf.splitTextToSize(settings.address || '', leftBoxWidth - textPadding - 2);
 
-                    const gstinY_calc = margin + 21 + (splitAddr.length * 4.2) + 4;
+                    const gstinY_calc = margin + 21 + (splitAddr.length * 5.0) + 4;
                     const contactYStart_calc = gstinY_calc + 9;
                     const lastTextY = contactYStart_calc + 4;
                     const leftBoxHeight = lastTextY - (margin + 10);
 
-                    const detailsLineHeight = 4.5;
+                    const detailsLineHeight = 5.2;
                     const labelOffset = 32;
-                    pdf.setFontSize(8);
+                    pdf.setFontSize(9);
                     pdf.setFont('Poppins', 'normal');
                     const visibleDetails = [
                         { label: `${type === 'quotations' ? 'Quotation' : type === 'proforma' ? 'Pro Forma Invoice' : 'Invoice'} No:`, value: doc.invoice_no || doc.doc_no || doc.quotation_no || doc.id.slice(0, 8), bold: true },
@@ -9637,24 +9706,24 @@ try {
                         }
                     }
 
-                    pdf.setFontSize(10);
+                    pdf.setFontSize(11.5);
                     pdf.setFont('Poppins', 'bold');
                     pdf.text(settings.company_name || 'LaGa Systems Pvt Ltd', contentX, margin + 16.5);
 
-                    pdf.setFontSize(8.5);
+                    pdf.setFontSize(9.5);
                     pdf.setFont('Poppins', 'normal');
                     pdf.text(splitAddr, contentX, margin + 21);
 
-                    const cinY = margin + 21 + (splitAddr.length * 4.2);
+                    const cinY = margin + 21 + (splitAddr.length * 5.0);
                     const gstinY = cinY + 4;
-                    pdf.setFontSize(7.5);
+                    pdf.setFontSize(8.5);
                     pdf.setFont('Poppins', 'normal');
                     pdf.text(`CIN No.: ${settings.cin_no || 'U72200TG2007PTC053444'}`, contentX, cinY);
                     pdf.text(`GSTIN: ${settings.gstin || '-'}`, contentX, gstinY);
                     pdf.text(`PAN: ${settings.pan_no || '-'} | MSME: ${settings.msme_no || '-'}`, contentX, gstinY + 4);
 
                     const contactYStart_new = gstinY + 9;
-                    pdf.setFontSize(6.5);
+                    pdf.setFontSize(7.5);
                     pdf.setFont('Poppins', 'normal');
                     const cleanWeb = (settings.website || '').replace(/^https?:\/\//, '');
                     pdf.text(`Email: ${settings.company_email || '-'} | Ph: ${settings.company_phone || '-'}`, contentX, contactYStart_new);
@@ -9665,7 +9734,7 @@ try {
                     let currentY = margin + 17.5;
 
                     visibleDetails.forEach((detail) => {
-                        pdf.setFontSize(8);
+                        pdf.setFontSize(9.2);
                         pdf.setFont('Poppins', 'normal');
                         pdf.text(detail.label, detailX, currentY);
                         if (detail.bold) pdf.setFont('Poppins', 'bold');
@@ -9687,7 +9756,7 @@ try {
 
                     const custName = doc.customers?.name || 'Walk-in Customer';
                     pdf.setFont('Poppins', 'bold');
-                    pdf.setFontSize(9);
+                    pdf.setFontSize(10.5);
                     const splitName = pdf.splitTextToSize(custName, custBoxWidth - 12);
 
                     // Left Address (Billing)
@@ -9709,15 +9778,15 @@ try {
                         }
                     }
 
-                    let customerHeadHeight = 5 + (splitName.length * 4.5);
-                    if (contactLines.length > 0) customerHeadHeight += (contactLines.length * 4);
-                    if (doc.customers?.gstin || doc.customers?.pan_no) customerHeadHeight += 4;
-                    const leftContentHeight = customerHeadHeight + 6 + (splitBill.length * 4);
+                    let customerHeadHeight = 5 + (splitName.length * 5.2);
+                    if (contactLines.length > 0) customerHeadHeight += (contactLines.length * 4.8);
+                    if (doc.customers?.gstin || doc.customers?.pan_no) customerHeadHeight += 5;
+                    const leftContentHeight = customerHeadHeight + 6 + (splitBill.length * 4.8);
 
                     // Right Address (Shipping)
                     const shippingTitle = (doc.customers?.shipping_title || doc.customers?.name || '').trim();
                     pdf.setFont('Poppins', 'bold');
-                    pdf.setFontSize(9);
+                    pdf.setFontSize(10.5);
                     const splitShipTitle = pdf.splitTextToSize(shippingTitle, custBoxWidth - 12);
 
                     const shippingLines = [
@@ -9727,7 +9796,7 @@ try {
                     ].filter(line => line.length > 0);
                     const shippingAddr = shippingLines.join('\n');
                     const splitShip = pdf.splitTextToSize(shippingAddr, custBoxWidth - 10);
-                    const rightContentHeight = 6 + (splitShipTitle.length * 4.5) + (splitShip.length * 4);
+                    const rightContentHeight = 6 + (splitShipTitle.length * 5.2) + (splitShip.length * 4.8);
 
                     const custBoxDynamicHeight = Math.max(leftContentHeight, rightContentHeight) + 1.5;
 
@@ -9736,21 +9805,21 @@ try {
                     pdf.rect(margin + custBoxWidth, y, custBoxWidth, custBoxDynamicHeight);
 
                     // Left Content Rendering
-                    pdf.setFontSize(7);
+                    pdf.setFontSize(8.5);
                     pdf.setFont('Poppins', 'bold');
                     pdf.text('Billing Address:', margin + 2, y + 4);
 
-                    pdf.setFontSize(9);
+                    pdf.setFontSize(10.5);
                     pdf.text(splitName, margin + 2, y + 9);
-                    let currentCustY = y + 9 + (splitName.length * 4.5);
+                    let currentCustY = y + 9 + (splitName.length * 5.2);
 
-                    pdf.setFontSize(8);
+                    pdf.setFontSize(9.2);
                     pdf.setFont('Poppins', 'normal');
                     pdf.text(splitBill, margin + 2, currentCustY);
-                    currentCustY += (splitBill.length * 4) + 1;
+                    currentCustY += (splitBill.length * 4.8) + 1;
 
                     if (doc.customers?.gstin || doc.customers?.pan_no) {
-                        pdf.setFontSize(7.5);
+                        pdf.setFontSize(8.5);
                         pdf.setFont('Poppins', 'bold');
                         let regInfo = [];
                         if (doc.customers.gstin) regInfo.push(`GSTIN: ${doc.customers.gstin}`);
@@ -9760,21 +9829,21 @@ try {
                     }
 
                     if (contactLines.length > 0) {
-                        pdf.setFontSize(7.5);
+                        pdf.setFontSize(8.5);
                         pdf.setFont('Poppins', 'normal');
                         pdf.text(contactLines, margin + 2, currentCustY + 1);
                     }
 
                     // Right Content Rendering
-                    pdf.setFontSize(7);
+                    pdf.setFontSize(8.5);
                     pdf.setFont('Poppins', 'bold');
                     pdf.text('Shipping address:', margin + custBoxWidth + 2, y + 4);
 
-                    pdf.setFontSize(9);
+                    pdf.setFontSize(10.5);
                     pdf.text(splitShipTitle, margin + custBoxWidth + 2, y + 9);
-                    let currentShipY = y + 9 + (splitShipTitle.length * 4.5);
+                    let currentShipY = y + 9 + (splitShipTitle.length * 5.2);
 
-                    pdf.setFontSize(8);
+                    pdf.setFontSize(9.2);
                     pdf.setFont('Poppins', 'normal');
                     pdf.text(splitShip, margin + custBoxWidth + 2, currentShipY);
 
@@ -9813,7 +9882,8 @@ try {
                         const discPct = item.discount || 0;
                         const discAmt = (amount * discPct) / 100;
                         const taxable = amount - discAmt;
-                        const gstRate = item.products?.gst || 0;
+                        const isZeroRated = doc.type === 'LUT / Export' || doc.type === 'Without GST';
+                        const gstRate = isZeroRated ? 0 : (item.products?.gst || 0);
                         const taxAmt = (taxable * gstRate) / 100;
                         const total = taxable + taxAmt;
 
@@ -9855,20 +9925,20 @@ try {
 
                     const headerRow2 = isInterState ? [{ content: '%', styles: { halign: 'center' } }, { content: 'Amount', styles: { halign: 'center' } }] : [{ content: '%', styles: { halign: 'center' } }, { content: 'Amount', styles: { halign: 'center' } }, { content: '%', styles: { halign: 'center' } }, { content: 'Amount', styles: { halign: 'center' } }];
 
-                    const baseColStyles = { 0: { cellWidth: 8, halign: 'center' }, 1: { cellWidth: 'auto' }, 2: { cellWidth: 13, halign: 'center' }, 3: { cellWidth: 9, halign: 'center' }, 4: { cellWidth: 19, halign: 'right' } };
+                    const baseColStyles = { 0: { cellWidth: 8, halign: 'center' }, 1: { cellWidth: 'auto' }, 2: { cellWidth: 15, halign: 'center' }, 3: { cellWidth: 10, halign: 'center' }, 4: { cellWidth: 22, halign: 'right' } };
                     let colIdx = 5;
                     if (hasDiscount) baseColStyles[colIdx++] = { cellWidth: 10, halign: 'center' };
-                    baseColStyles[colIdx++] = { cellWidth: 22, halign: 'right' };
+                    baseColStyles[colIdx++] = { cellWidth: 26, halign: 'right' };
                     if (isInterState) {
                         baseColStyles[colIdx++] = { cellWidth: 10, halign: 'center' };
-                        baseColStyles[colIdx++] = { cellWidth: 18, halign: 'right' };
+                        baseColStyles[colIdx++] = { cellWidth: 24, halign: 'right' };
                     } else {
                         baseColStyles[colIdx++] = { cellWidth: 8, halign: 'center' };
-                        baseColStyles[colIdx++] = { cellWidth: 18, halign: 'right' };
+                        baseColStyles[colIdx++] = { cellWidth: 24, halign: 'right' };
                         baseColStyles[colIdx++] = { cellWidth: 8, halign: 'center' };
-                        baseColStyles[colIdx++] = { cellWidth: 18, halign: 'right' };
+                        baseColStyles[colIdx++] = { cellWidth: 24, halign: 'right' };
                     }
-                    baseColStyles[colIdx++] = { cellWidth: 21, halign: 'right' };
+                    baseColStyles[colIdx++] = { cellWidth: 24, halign: 'right' };
 
                     pdf.autoTable({
                         startY, head: [headerRow1, headerRow2], body: tableData,
@@ -9890,9 +9960,9 @@ try {
                             [{ content: 'Grand Total', colSpan: colIdx - 1, styles: { halign: 'right', fontStyle: 'bold' } }, { content: doc.total_amount.toLocaleString('en-IN', { minimumFractionDigits: 2 }), styles: { halign: 'right', fontStyle: 'bold' } }]
                         ],
                         theme: 'grid',
-                        headStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], lineWidth: 0.1, fontStyle: 'bold', fontSize: 7, font: 'Poppins' },
-                        footStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], lineWidth: 0.1, fontSize: 7, font: 'Poppins' },
-                        styles: { fontSize: 7, cellPadding: 2, lineColor: [0, 0, 0], lineWidth: 0.1, font: 'Poppins' },
+                        headStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], lineWidth: 0.1, fontStyle: 'bold', fontSize: 8.5, font: 'Poppins' },
+                    footStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], lineWidth: 0.1, fontSize: 8.5, font: 'Poppins' },
+                    styles: { fontSize: 8.5, cellPadding: 2, lineColor: [0, 0, 0], lineWidth: 0.1, font: 'Poppins' },
                         columnStyles: baseColStyles, margin: { left: margin, right: margin }
                     });
 
@@ -9925,8 +9995,8 @@ try {
                         head: [[{ content: 'HSN/SAC', rowSpan: 2 }, { content: 'Taxable Value', rowSpan: 2 }, { content: 'Central Tax', colSpan: 2 }, { content: 'State Tax', colSpan: 2 }, { content: 'Total Tax Amount', rowSpan: 2 }], ['Rate', 'Amount', 'Rate', 'Amount']],
                         body: hsnRows,
                         theme: 'grid',
-                        headStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], lineWidth: 0.1, fontSize: 7, halign: 'center', fontStyle: 'bold', font: 'Poppins' },
-                        styles: { fontSize: 7, halign: 'right', lineColor: [0, 0, 0], lineWidth: 0.1, cellPadding: 2, font: 'Poppins' },
+                    headStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], lineWidth: 0.1, fontSize: 8.5, halign: 'center', fontStyle: 'bold', font: 'Poppins' },
+                    styles: { fontSize: 8.5, halign: 'right', lineColor: [0, 0, 0], lineWidth: 0.1, cellPadding: 2, font: 'Poppins' },
                         columnStyles: { 0: { halign: 'left', cellWidth: 30 }, 1: { cellWidth: 35 }, 2: { cellWidth: 20 }, 3: { cellWidth: 25 }, 4: { cellWidth: 20 }, 5: { cellWidth: 25 }, 6: { cellWidth: 'auto' } },
                         margin: { left: margin, right: margin }
                     });
@@ -9943,7 +10013,7 @@ try {
                     pdf.rect(margin, finalY, pageWidth - (margin * 2), footerHeight);
 
                     // Bank Details
-                    pdf.setFontSize(7);
+                    pdf.setFontSize(8.5);
                     pdf.setFont('Poppins', 'bold');
                     pdf.text('Bank Details:', margin + 2, finalY + 6);
                     pdf.setFont('Poppins', 'normal');
@@ -9960,7 +10030,7 @@ try {
 
                     // Signature & Stamps
                     const displayName = settings.company_name?.startsWith('M/s') ? settings.company_name : `M/s ${settings.company_name || 'LaGa Systems'}`;
-                    pdf.setFontSize(8);
+                    pdf.setFontSize(10.5);
                     pdf.setFont('Poppins', 'bold');
                     pdf.text(`For ${displayName}`, pageWidth - margin - 2, finalY + 8, { align: 'right' });
 
@@ -9974,7 +10044,7 @@ try {
                         try { pdf.addImage(settings.signature, 'PNG', pageWidth - margin - 33, finalY + 10, 30, 20); } catch (e) { }
                     }
 
-                    pdf.setFontSize(7);
+                    pdf.setFontSize(8.5);
                     pdf.text('Authorized Signatory', pageWidth - margin - 2, finalY + 40, { align: 'right' });
 
                     return finalY + footerHeight;
@@ -9982,8 +10052,9 @@ try {
 
                 renderTerms: (pdf, doc, startY, margin, pageWidth, pageHeight) => {
                     const finalTerms = doc.terms || doc.notes || '';
+                    pdf.setFontSize(9.5);
                     const splitTerms = pdf.splitTextToSize(finalTerms, pageWidth - (margin * 2) - 4);
-                    const termsBoxHeight = 9 + (splitTerms.length * 3.5) + 2;
+                    const termsBoxHeight = 9 + (splitTerms.length * 4.5) + 2;
                     let finalY = startY;
                     if (finalY + termsBoxHeight > pageHeight - 10) { pdf.addPage(); finalY = margin; }
 
@@ -9991,6 +10062,7 @@ try {
                     pdf.rect(margin, finalY, pageWidth - (margin * 2), termsBoxHeight);
                     pdf.setFont('Poppins', 'bold');
                     pdf.text('Terms and Conditions:', margin + 2, finalY + 5);
+                    pdf.setFontSize(9.5);
                     pdf.setFont('Poppins', 'normal');
                     pdf.text(splitTerms, margin + 2, finalY + 9);
 
@@ -10002,7 +10074,7 @@ try {
 
                     for (let i = 1; i <= totalPages; i++) {
                         pdf.setPage(i);
-                        pdf.setFontSize(6);
+                        pdf.setFontSize(7.5);
                         pdf.setFont('Poppins', 'normal');
                         pdf.setTextColor(100);
                         pdf.text(`Page ${i}/${totalPages} | Printed by ${userStr} on ${printDateStr}`, margin, pageHeight - 5);
