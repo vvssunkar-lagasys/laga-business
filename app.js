@@ -5732,7 +5732,10 @@ try {
                         const invYear = invDate.getFullYear();
 
                         // Parse FY (e.g., "2024-25" means Apr 2024 to Mar 2025)
-                        const [fyStart, fyEnd] = fy.split('-').map(y => parseInt('20' + y));
+                        const [fyStart, fyEnd] = fy.split('-').map(y => {
+                            y = y.trim();
+                            return y.length === 4 ? parseInt(y) : parseInt('20' + y);
+                        });
 
                         // Check if invoice is in selected FY
                         let inFY = false;
