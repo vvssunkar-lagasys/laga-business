@@ -9660,7 +9660,7 @@ try {
                     const leftBoxHeight = lastTextY - (margin + 10);
 
                     const detailsLineHeight = 5.2;
-                    const labelOffset = 32;
+                    const labelOffset = 42;
                     pdf.setFontSize(9);
                     pdf.setFont('Poppins', 'normal');
                     const visibleDetails = [
@@ -9778,10 +9778,10 @@ try {
                         }
                     }
 
-                    let customerHeadHeight = 5 + (splitName.length * 5.2);
-                    if (contactLines.length > 0) customerHeadHeight += (contactLines.length * 4.8);
-                    if (doc.customers?.gstin || doc.customers?.pan_no) customerHeadHeight += 5;
-                    const leftContentHeight = customerHeadHeight + 6 + (splitBill.length * 4.8);
+                    let customerHeadHeight = 4 + (splitName.length * 4.4);
+                    if (contactLines.length > 0) customerHeadHeight += (contactLines.length * 4.0);
+                    if (doc.customers?.gstin || doc.customers?.pan_no) customerHeadHeight += 4;
+                    const leftContentHeight = customerHeadHeight + 4 + (splitBill.length * 4.0);
 
                     // Right Address (Shipping)
                     const shippingTitle = (doc.customers?.shipping_title || doc.customers?.name || '').trim();
@@ -9796,7 +9796,7 @@ try {
                     ].filter(line => line.length > 0);
                     const shippingAddr = shippingLines.join('\n');
                     const splitShip = pdf.splitTextToSize(shippingAddr, custBoxWidth - 10);
-                    const rightContentHeight = 6 + (splitShipTitle.length * 5.2) + (splitShip.length * 4.8);
+                    const rightContentHeight = 4 + (splitShipTitle.length * 4.4) + (splitShip.length * 4.0);
 
                     const custBoxDynamicHeight = Math.max(leftContentHeight, rightContentHeight) + 1.5;
 
@@ -9810,28 +9810,28 @@ try {
                     pdf.text('Billing Address:', margin + 2, y + 4);
 
                     pdf.setFontSize(10.5);
-                    pdf.text(splitName, margin + 2, y + 9);
-                    let currentCustY = y + 9 + (splitName.length * 5.2);
+                    pdf.text(splitName, margin + 2, y + 8.5);
+                    let currentCustY = y + 8.5 + (splitName.length * 4.4);
 
                     pdf.setFontSize(9.2);
                     pdf.setFont('Poppins', 'normal');
                     pdf.text(splitBill, margin + 2, currentCustY);
-                    currentCustY += (splitBill.length * 4.8) + 1;
+                    currentCustY += (splitBill.length * 4.0);
 
                     if (doc.customers?.gstin || doc.customers?.pan_no) {
                         pdf.setFontSize(8.5);
                         pdf.setFont('Poppins', 'bold');
                         let regInfo = [];
-                        if (doc.customers.gstin) regInfo.push(`GSTIN: ${doc.customers.gstin}`);
-                        if (doc.customers.pan_no) regInfo.push(`PAN: ${doc.customers.pan_no}`);
-                        pdf.text(regInfo.join(' | '), margin + 2, currentCustY + 1);
-                        currentCustY += 4;
+                        if (doc.customers.gstin) regInfo.push(`GSTIN:${doc.customers.gstin}`);
+                        if (doc.customers.pan_no) regInfo.push(`PAN:${doc.customers.pan_no}`);
+                        pdf.text(regInfo.join(' | '), margin + 2, currentCustY + 0.5);
+                        currentCustY += 3.5;
                     }
 
                     if (contactLines.length > 0) {
                         pdf.setFontSize(8.5);
                         pdf.setFont('Poppins', 'normal');
-                        pdf.text(contactLines, margin + 2, currentCustY + 1);
+                        pdf.text(contactLines, margin + 2, currentCustY + 0.5);
                     }
 
                     // Right Content Rendering
@@ -9840,8 +9840,8 @@ try {
                     pdf.text('Shipping address:', margin + custBoxWidth + 2, y + 4);
 
                     pdf.setFontSize(10.5);
-                    pdf.text(splitShipTitle, margin + custBoxWidth + 2, y + 9);
-                    let currentShipY = y + 9 + (splitShipTitle.length * 5.2);
+                    pdf.text(splitShipTitle, margin + custBoxWidth + 2, y + 8.5);
+                    let currentShipY = y + 8.5 + (splitShipTitle.length * 4.4);
 
                     pdf.setFontSize(9.2);
                     pdf.setFont('Poppins', 'normal');
