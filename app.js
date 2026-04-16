@@ -245,10 +245,19 @@ try {
         el.mainRoot.classList.add('hidden');
     };
 
-    const formatDate = (dateStr, options = { day: '2-digit', month: 'Short', year: 'numeric' }) => {
+    const formatDate = (dateStr, options) => {
         if (!dateStr) return 'N/A';
         const d = new Date(dateStr);
         if (isNaN(d.getTime())) return 'Invalid Date';
+        
+        // Use DD.MM.YYYY as default for all records/PDFs as requested
+        if (!options) {
+            const day = String(d.getDate()).padStart(2, '0');
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const year = d.getFullYear();
+            return `${day}.${month}.${year}`;
+        }
+
         try {
             return d.toLocaleDateString('en-GB', options);
         } catch (e) {
@@ -2260,6 +2269,10 @@ try {
                             </h3>
                             <div class="space-y-3">
                                 <div>
+                                    <label class="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Bank Name</label>
+                                    <input type="text" name="bank_inr_bank_name" class="form-input text-xs" value="${data.bank_inr_bank_name || ''}" placeholder="e.g. Axis Bank, HDFC Bank">
+                                </div>
+                                <div>
                                     <label class="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Account Name</label>
                                     <input type="text" name="bank_inr_name" class="form-input text-xs" value="${data.bank_inr_name || ''}" placeholder="e.g. Laga Business Solutions">
                                 </div>
@@ -2293,6 +2306,10 @@ try {
                                 International Account (USD)
                             </h3>
                             <div class="space-y-3">
+                                <div>
+                                    <label class="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Bank Name</label>
+                                    <input type="text" name="bank_usd_bank_name" class="form-input text-xs" value="${data.bank_usd_bank_name || ''}" placeholder="e.g. Axis Bank, HDFC Bank">
+                                </div>
                                 <div>
                                     <label class="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Account Name</label>
                                     <input type="text" name="bank_usd_name" class="form-input text-xs" value="${data.bank_usd_name || ''}" placeholder="e.g. Laga Systems USD">
@@ -8206,11 +8223,13 @@ try {
                         pan_no: formData.get('pan_no'),
                         msme_no: formData.get('msme_no'),
                         address: formData.get('address'),
+                        bank_inr_bank_name: formData.get('bank_inr_bank_name'),
                         bank_inr_name: formData.get('bank_inr_name'),
                         bank_inr_acc_no: formData.get('bank_inr_acc_no'),
                         bank_inr_branch: formData.get('bank_inr_branch'),
                         bank_inr_ifsc: formData.get('bank_inr_ifsc'),
                         bank_inr_swift: formData.get('bank_inr_swift'),
+                        bank_usd_bank_name: formData.get('bank_usd_bank_name'),
                         bank_usd_name: formData.get('bank_usd_name'),
                         bank_usd_acc_no: formData.get('bank_usd_acc_no'),
                         bank_usd_branch: formData.get('bank_usd_branch'),
@@ -8630,7 +8649,7 @@ try {
 
                     // Invoice Details
                     doc.text(`Invoice No: ${inv.invoice_no}`, 20, 75);
-                    doc.text(`Date: ${new Date(inv.date).toLocaleDateString()}`, 120, 75);
+                    doc.text(`Date: ${formatDate(inv.date)}`, 120, 75);
 
                     // Table
                     const tableData = items.map((item, idx) => [
@@ -10006,7 +10025,7 @@ try {
 
                 renderFooter: (pdf, doc, settings, startY, margin, pageWidth, pageHeight, options) => {
                     let finalY = startY;
-                    const footerHeight = 45;
+                    const footerHeight = 44;
                     if (finalY + footerHeight > pageHeight - 20) { pdf.addPage(); finalY = margin; }
 
                     pdf.setLineWidth(0.1);
@@ -10019,14 +10038,16 @@ try {
                     pdf.setFont('Poppins', 'normal');
                     const bankPrefix = (doc.type === 'LUT / Export') ? 'bank_usd' : 'bank_inr';
                     pdf.text(`Bank Name:`, margin + 2, finalY + 12);
-                    pdf.text(settings[`${bankPrefix}_name`] || '-', margin + 30, finalY + 12);
-                    pdf.text(`Account No:`, margin + 2, finalY + 17);
-                    pdf.text(settings[`${bankPrefix}_acc_no`] || '-', margin + 30, finalY + 17);
+                    pdf.text(settings[`${bankPrefix}_bank_name`] || '-', margin + 30, finalY + 12);
+                    pdf.text(`Account Name:`, margin + 2, finalY + 17);
+                    pdf.text(settings[`${bankPrefix}_name`] || '-', margin + 30, finalY + 17);
+                    pdf.text(`Account No:`, margin + 2, finalY + 22);
+                    pdf.text(settings[`${bankPrefix}_acc_no`] || '-', margin + 30, finalY + 22);
                     const isUsd = bankPrefix === 'bank_usd';
-                    pdf.text(isUsd ? 'SWIFT Code:' : 'IFSC Code:', margin + 2, finalY + 22);
-                    pdf.text(settings[`${bankPrefix}_${isUsd ? 'swift' : 'ifsc'}`] || '-', margin + 30, finalY + 22);
-                    pdf.text(`Branch:`, margin + 2, finalY + 27);
-                    pdf.text(settings[`${bankPrefix}_branch`] || '-', margin + 30, finalY + 27);
+                    pdf.text(isUsd ? 'SWIFT Code:' : 'IFSC Code:', margin + 2, finalY + 27);
+                    pdf.text(settings[`${bankPrefix}_${isUsd ? 'swift' : 'ifsc'}`] || '-', margin + 30, finalY + 27);
+                    pdf.text(`Branch:`, margin + 2, finalY + 32);
+                    pdf.text(settings[`${bankPrefix}_branch`] || '-', margin + 30, finalY + 32);
 
                     // Signature & Stamps
                     const displayName = settings.company_name?.startsWith('M/s') ? settings.company_name : `M/s ${settings.company_name || 'LaGa Systems'}`;
@@ -10070,14 +10091,14 @@ try {
                     const totalPages = pdf.internal.getNumberOfPages();
                     const userStr = state.user?.email || 'User';
                     const now = new Date();
-                    const printDateStr = now.toLocaleDateString('en-IN') + ' ' + now.toLocaleTimeString('en-IN');
+                    const printDateStr = formatDate(now) + ' ' + now.toLocaleTimeString('en-IN');
 
                     for (let i = 1; i <= totalPages; i++) {
                         pdf.setPage(i);
                         pdf.setFontSize(7.5);
                         pdf.setFont('Poppins', 'normal');
                         pdf.setTextColor(100);
-                        pdf.text(`Page ${i}/${totalPages} | Printed by ${userStr} on ${printDateStr}`, margin, pageHeight - 5);
+                        pdf.text(`Page ${i}/${totalPages}`, margin, pageHeight - 5);
                     }
                 },
 
@@ -10281,7 +10302,7 @@ try {
                         runningBalance += (debit - credit);
 
                         return [
-                            new Date(inv.date).toLocaleDateString('en-IN'),
+                            formatDate(inv.date),
                             `Invoice: ${inv.invoice_no}`,
                             debit.toLocaleString('en-IN', { minimumFractionDigits: 2 }),
                             credit.toLocaleString('en-IN', { minimumFractionDigits: 2 }),
@@ -10324,7 +10345,7 @@ try {
                         const dedBody = invoicesWithDeductions.map(inv => {
                             const total = (inv.tds_amount || 0) + (inv.bank_charges_deduction || 0) + (inv.pbg_amount || 0) + (inv.other_deductions || 0);
                             return [
-                                new Date(inv.date).toLocaleDateString('en-IN'),
+                                formatDate(inv.date),
                                 inv.invoice_no,
                                 (inv.tds_amount || 0).toLocaleString('en-IN'),
                                 (inv.bank_charges_deduction || 0).toLocaleString('en-IN'),
