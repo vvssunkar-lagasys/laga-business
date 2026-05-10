@@ -6351,11 +6351,11 @@ try {
                         if (match) nextSeq = parseInt(match[1]) + 1;
                     }
 
-                    const newDocNo = `LGS-INV-${fyStart}-${String(fyEnd).slice(-2)}-${String(nextSeq).padStart(3, '0')}`;
+                    const newDocNo = `LGS-${String(fyStart).slice(-2)}-${String(fyEnd).slice(-2)}-${String(nextSeq).padStart(3, '0')}`;
                     noInput.value = newDocNo;
                 } catch (err) {
                     console.error('Error generating Invoice number:', err);
-                    noInput.value = `LGS-INV-${fyStart}-${String(fyEnd).slice(-2)}-001`;
+                    noInput.value = `LGS-${String(fyStart).slice(-2)}-${String(fyEnd).slice(-2)}-001`;
                 }
             },
 
@@ -8373,6 +8373,15 @@ try {
                             tax_rate: 18 // Defaulting to 18% for now as per current app logic or we can make it dynamic later
                         });
                     });
+
+                    // GST Compliance Validation
+                    if (!invoice.invoice_no) throw new Error('Invoice number is required');
+                    if (invoice.invoice_no.length > 16) {
+                        throw new Error(`Invoice number "${invoice.invoice_no}" exceeds 16 characters (GST Portal limit). Current length: ${invoice.invoice_no.length}`);
+                    }
+                    if (!/^[A-Z0-9-]+$/.test(invoice.invoice_no)) {
+                        throw new Error('Invoice number can only contain uppercase letters (A-Z), numbers (0-9), and hyphens (-) as per GST rules.');
+                    }
 
                     if (!invoice.customer_id) throw new Error('Please select a customer');
 
