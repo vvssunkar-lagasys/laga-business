@@ -6334,28 +6334,34 @@ try {
                     fyEnd = year + 1;
                 }
 
+                const prefix = `LGS-${String(fyStart).slice(-2)}-${String(fyEnd).slice(-2)}-`;
+
                 try {
+                    // Fetch recent invoices with this prefix to find the max sequence
+                    // We fetch top 100 to handle alphabetical sorting quirks (e.g., "9" > "014")
                     const { data, error } = await supabaseClient
                         .from('invoices')
                         .select('invoice_no')
-                        .gte('date', `${fyStart}-04-01`)
-                        .lte('date', `${fyEnd}-03-31`)
+                        .like('invoice_no', `${prefix}%`)
                         .order('invoice_no', { ascending: false })
-                        .limit(1);
+                        .limit(100);
 
                     if (error) throw error;
 
                     let nextSeq = 1;
-                    if (data && data.length > 0 && data[0].invoice_no) {
-                        const match = data[0].invoice_no.match(/-(\d+)$/);
-                        if (match) nextSeq = parseInt(match[1]) + 1;
+                    if (data && data.length > 0) {
+                        const seqs = data.map(item => {
+                            const match = item.invoice_no.match(/-(\d+)$/);
+                            return match ? parseInt(match[1]) : 0;
+                        });
+                        nextSeq = Math.max(...seqs) + 1;
                     }
 
-                    const newDocNo = `LGS-${String(fyStart).slice(-2)}-${String(fyEnd).slice(-2)}-${String(nextSeq).padStart(3, '0')}`;
+                    const newDocNo = `${prefix}${String(nextSeq).padStart(3, '0')}`;
                     noInput.value = newDocNo;
                 } catch (err) {
                     console.error('Error generating Invoice number:', err);
-                    noInput.value = `LGS-${String(fyStart).slice(-2)}-${String(fyEnd).slice(-2)}-001`;
+                    noInput.value = `${prefix}001`;
                 }
             },
 
@@ -6793,45 +6799,43 @@ try {
 
                 const selectedDate = new Date(dateInput.value);
                 const year = selectedDate.getFullYear();
-                const month = selectedDate.getMonth(); // 0-indexed, April is 3
+                const month = selectedDate.getMonth();
 
-                // Determine FY based on selected date
                 let fyStart, fyEnd;
-                if (month < 3) { // Jan-Mar (months 0-2)
+                if (month < 3) {
                     fyStart = year - 1;
                     fyEnd = year;
-                } else { // Apr-Dec (months 3-11)
+                } else {
                     fyStart = year;
                     fyEnd = year + 1;
                 }
 
+                const prefix = `LGS-PFI-${fyStart}-${String(fyEnd).slice(-2)}-`;
+
                 try {
-                    // Query last PFI number for this FY
                     const { data, error } = await supabaseClient
                         .from('proforma_invoices')
                         .select('doc_no')
-                        .gte('date', `${fyStart}-04-01`)
-                        .lte('date', `${fyEnd}-03-31`)
+                        .like('doc_no', `${prefix}%`)
                         .order('doc_no', { ascending: false })
-                        .limit(1);
+                        .limit(100);
 
                     if (error) throw error;
 
                     let nextSeq = 1;
-                    if (data && data.length > 0 && data[0].doc_no) {
-                        // Extract sequence from last doc_no (e.g., "LGS-PFI-2025-26-123" -> 123)
-                        const match = data[0].doc_no.match(/-(\d+)$/);
-                        if (match) {
-                            nextSeq = parseInt(match[1]) + 1;
-                        }
+                    if (data && data.length > 0) {
+                        const seqs = data.map(item => {
+                            const match = item.doc_no.match(/-(\d+)$/);
+                            return match ? parseInt(match[1]) : 0;
+                        });
+                        nextSeq = Math.max(...seqs) + 1;
                     }
 
-                    const newDocNo = `LGS-PFI-${fyStart}-${String(fyEnd).slice(-2)}-${String(nextSeq).padStart(3, '0')}`;
+                    const newDocNo = `${prefix}${String(nextSeq).padStart(3, '0')}`;
                     noInput.value = newDocNo;
                 } catch (err) {
                     console.error('Error generating PFI number:', err);
-                    // Fallback to a basic format if query fails
-                    noInput.value = `LGS-PFI-${fyStart}-${String(fyEnd).slice(-2)}-001`;
+                    noInput.value = `${prefix}001`;
                 }
             },
 
@@ -7412,30 +7416,32 @@ try {
                     fyEnd = year + 1;
                 }
 
+                const prefix = `LGS-QTN-${fyStart}-${String(fyEnd).slice(-2)}-`;
+
                 try {
                     const { data, error } = await supabaseClient
                         .from('quotations')
                         .select('quotation_no')
-                        .gte('date', `${fyStart}-04-01`)
-                        .lte('date', `${fyEnd}-03-31`)
+                        .like('quotation_no', `${prefix}%`)
                         .order('quotation_no', { ascending: false })
-                        .limit(1);
+                        .limit(100);
 
                     if (error) throw error;
 
                     let nextSeq = 1;
-                    if (data && data.length > 0 && data[0].quotation_no) {
-                        const match = data[0].quotation_no.match(/-(\d+)$/);
-                        if (match) {
-                            nextSeq = parseInt(match[1]) + 1;
-                        }
+                    if (data && data.length > 0) {
+                        const seqs = data.map(item => {
+                            const match = item.quotation_no.match(/-(\d+)$/);
+                            return match ? parseInt(match[1]) : 0;
+                        });
+                        nextSeq = Math.max(...seqs) + 1;
                     }
 
-                    const newDocNo = `LGS-QTN-${fyStart}-${String(fyEnd).slice(-2)}-${String(nextSeq).padStart(3, '0')}`;
+                    const newDocNo = `${prefix}${String(nextSeq).padStart(3, '0')}`;
                     noInput.value = newDocNo;
                 } catch (err) {
                     console.error('Error generating QTN number:', err);
-                    noInput.value = `LGS-QTN-${fyStart}-${String(fyEnd).slice(-2)}-001`;
+                    noInput.value = `${prefix}001`;
                 }
             },
 
