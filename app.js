@@ -9905,7 +9905,7 @@ try {
 
                     const myStateCode = api.docs.pdfModel.getStateCode(settings?.state, settings?.gstin);
                     const customerStateCode = api.docs.pdfModel.getStateCode(doc.customers?.state, doc.customers?.gstin);
-                    const isInterState = customerStateCode !== myStateCode;
+                    const isInterState = doc.type === 'LUT / Export' || (customerStateCode !== myStateCode);
 
                     const currency = doc.currency || 'INR';
                     const symbol = { 'INR': 'Rs.', 'USD': '$', 'EUR': '€' }[currency] || currency;
@@ -10003,12 +10003,13 @@ try {
                     return { finalY: pdf.lastAutoTable.finalY, isInterState };
                 },
 
-                renderHSNSummary: (pdf, items, isInterState, startY, margin, exchangeRate = 1.0) => {
+                renderHSNSummary: (pdf, items, isInterState, startY, margin, exchangeRate = 1.0, doc = null) => {
+                    const isZeroRated = doc && (doc.type === 'LUT / Export' || doc.type === 'Without GST');
                     const hsnSummary = items.reduce((acc, item) => {
                         const hsn = item.products?.hsn || '-';
                         const taxableBase = item.qty * item.rate * (1 - (item.discount || 0) / 100);
                         const taxable = taxableBase * exchangeRate;
-                        const rate = item.products?.gst || 0;
+                        const rate = isZeroRated ? 0 : (item.products?.gst || 0);
                         const tax = (taxable * rate) / 100;
                         if (!acc[hsn]) acc[hsn] = { taxable: 0, tax: 0, rate };
                         acc[hsn].taxable += taxable;
@@ -10029,8 +10030,8 @@ try {
                         head: [[{ content: 'HSN/SAC', rowSpan: 2 }, { content: 'Taxable Value', rowSpan: 2 }, { content: 'Central Tax', colSpan: 2 }, { content: 'State Tax', colSpan: 2 }, { content: 'Total Tax Amount', rowSpan: 2 }], ['Rate', 'Amount', 'Rate', 'Amount']],
                         body: hsnRows,
                         theme: 'grid',
-                    headStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], lineWidth: 0.1, fontSize: 8.5, halign: 'center', fontStyle: 'bold', font: 'Poppins' },
-                    styles: { fontSize: 8.5, halign: 'right', lineColor: [0, 0, 0], lineWidth: 0.1, cellPadding: 2, font: 'Poppins' },
+                        headStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], lineWidth: 0.1, fontSize: 8.5, halign: 'center', fontStyle: 'bold', font: 'Poppins' },
+                        styles: { fontSize: 8.5, halign: 'right', lineColor: [0, 0, 0], lineWidth: 0.1, cellPadding: 2, font: 'Poppins' },
                         columnStyles: { 0: { halign: 'left', cellWidth: 30 }, 1: { cellWidth: 35 }, 2: { cellWidth: 20 }, 3: { cellWidth: 25 }, 4: { cellWidth: 20 }, 5: { cellWidth: 25 }, 6: { cellWidth: 'auto' } },
                         margin: { left: margin, right: margin }
                     });
@@ -10218,7 +10219,7 @@ try {
                     pdf.text('E & O.E', pageWidth - margin - 15, finalY + 6.5);
 
                     // HSN Summary
-                    const hsnY = model.renderHSNSummary(pdf, items, isInterState, finalY + 10, margin, parseFloat(doc.exchange_rate) || 1.0);
+                    const hsnY = model.renderHSNSummary(pdf, items, isInterState, finalY + 10, margin, parseFloat(doc.exchange_rate) || 1.0, doc);
 
                     // Custom Specs/Fields
                     let nextY = hsnY;
